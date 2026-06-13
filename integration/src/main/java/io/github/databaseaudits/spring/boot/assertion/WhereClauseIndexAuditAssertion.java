@@ -1,0 +1,52 @@
+package io.github.databaseaudits.spring.boot.assertion;
+
+import java.util.List;
+import java.util.Set;
+
+import io.github.databaseaudits.audit.runtime.plan.WhereClauseIndexAudit;
+
+/**
+ * Asserts that every captured WHERE-clause access is index-satisfiable (or is
+ * excluded), using {@link WhereClauseIndexAudit}.
+ */
+public class WhereClauseIndexAuditAssertion extends AbstractAuditAssertion {
+    private static final String MESSAGE =
+            "Unindexed WHERE-clause access — a Seq Scan with a Filter survived enable_seqscan=off, so no index can "
+                    + "satisfy the predicate. Fix: add an index on the filtered column(s), or exclude the relation / "
+                    + "SQL fragment.";
+
+    private final WhereClauseIndexAudit audit;
+
+    /**
+     * Constructs the assertion around its audit.
+     *
+     * @param audit
+     *                  the underlying audit.
+     */
+    public WhereClauseIndexAuditAssertion(final WhereClauseIndexAudit audit) {
+        this.audit = audit;
+    }
+
+    /**
+     * Asserts that every captured WHERE-clause access is index-satisfiable.
+     */
+    public void assertClean() {
+        assertClean(Set.of(), List.of());
+    }
+
+    /**
+     * Asserts that every captured WHERE-clause access is index-satisfiable,
+     * ignoring the excluded relations and fragments.
+     *
+     * @param excludedRelations
+     *                                 the relation names to exclude.
+     * @param excludedSqlFragments
+     *                                 the SQL fragments whose statements to
+     *                                 exclude.
+     */
+    public void assertClean(final Set<String> excludedRelations,
+            final List<String> excludedSqlFragments) {
+        failOnViolations(MESSAGE,
+                audit.audit(excludedRelations, excludedSqlFragments));
+    }
+}
