@@ -2,14 +2,8 @@ name: Build and Deploy Maven Site to GitHub Pages
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '**/src/site/**'
-      - '**/*.adoc'
-      - '**/*.md'
   workflow_run:
-    workflows: ["Build any branch", "Record Dependabot update in changes.xml"]
+    workflows: ["Build any branch"]
     types: [completed]
     branches: [ main ]
 
@@ -28,11 +22,13 @@ env:
 
 jobs:
   build-site:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
     - uses: actions/checkout@v6
+      with:
+        ref: ${{ github.event.workflow_run.head_sha || github.sha }}
     - uses: ./.github/actions/jdk-setup
     # Tests run (no -DskipTests) so JaCoCo writes target/jacoco.exec and target/jacoco-it.exec;
     # the site step renders the unit and integration coverage reports from them.
@@ -43,20 +39,12 @@ jobs:
     - name: Generate and stage Maven site
       run: ${{ env.MAVEN_COMMAND }} ${{ env.MAVEN_CLI_COMMON }} site site:stage -Dproject.build.outputTimestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     - name: Upload Pages artifact
-      if: >-
-        github.event_name == 'workflow_dispatch' ||
-        github.event_name == 'push' ||
-        github.event_name == 'workflow_run'
       uses: actions/upload-pages-artifact@v5
       with:
         path: target/staging/
 
   deploy:
     needs: build-site
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_run'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:

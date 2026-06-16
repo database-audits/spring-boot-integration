@@ -6,6 +6,9 @@ on:
     types: [completed]
     branches: [main]
 
+permissions:
+  contents: read
+
 env:
   MAVEN_COMMAND: ./mvnw
   MAVEN_CLI_COMMON: "-e -B"
@@ -17,26 +20,25 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
-
-      - uses: actions/setup-java@v5
         with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: maven
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: ./.github/actions/jdk-setup
+        with:
           server-id: central-publish
           server-username: CENTRAL_USERNAME
           server-password: CENTRAL_TOKEN
 
       - name: Get project version
         id: ver
-        run: echo "version=$(${{ env.MAVEN_COMMAND }} help:evaluate -Dexpression=project.version -q -DforceStdout)" >> $GITHUB_OUTPUT
+        run: echo "version=$(${{ env.MAVEN_COMMAND }} help:evaluate -Dexpression=project.version -q -DforceStdout | tail -1)" >> $GITHUB_OUTPUT
 
       - name: Deploy snapshot to Maven Central
         if: endsWith(steps.ver.outputs.version, '-SNAPSHOT')
         env:
           CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           CENTRAL_TOKEN: ${{ secrets.CENTRAL_TOKEN }}
-        run: ${{ env.MAVEN_COMMAND }} ${{ env.MAVEN_CLI_COMMON }} deploy -DskipTests
+        run: ${{ env.MAVEN_COMMAND }} ${{ env.MAVEN_CLI_COMMON }} deploy -DskipTests -Darchetype.test.skip=true
 
       - name: Skip (not a snapshot version)
         if: "!endsWith(steps.ver.outputs.version, '-SNAPSHOT')"
