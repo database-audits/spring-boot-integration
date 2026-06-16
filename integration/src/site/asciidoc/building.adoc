@@ -1,0 +1,74 @@
+= Building
+
+== Prerequisites
+
+* *JDK 21.* The build uses the Temurin 21 toolchain. Verify with `java -version`.
+* *Maven wrapper.* Use `.\mvnw.cmd` (Windows) or `./mvnw` (Linux/macOS) from the repo root — no local Maven
+  installation required.
+* *`database-audits-core` in your local repository.* The integration depends on `database-audits-core:1.0.0-SNAPSHOT`.
+  If working against unreleased core changes, build and install core first:
++
+[source,powershell]
+----
+cd ..\core
+.\mvnw.cmd install
+----
+* *Docker (for the archetype module only).* The archetype's self-test generates a sample project and runs it
+  against a Testcontainers PostgreSQL container. Start Rancher Desktop (or another Docker runtime) before running
+  a full reactor build. The integration module's own tests do *not* require Docker.
+
+== Build commands
+
+[source,powershell]
+----
+# Full reactor: unit tests + integration tests + archetype self-test (requires Docker)
+.\mvnw.cmd clean install
+
+# Integration module only (no Docker needed)
+.\mvnw.cmd clean install -pl integration
+
+# Run one integration test by name (failsafe uses -Dit.test)
+.\mvnw.cmd verify -Dit.test=DatabaseAuditTestConfigurationIT -pl integration
+
+# Run one unit test by name (surefire uses -Dtest)
+.\mvnw.cmd test -Dtest=SomeClassTest#someMethod -pl integration
+----
+
+== Test output
+
+Test console output is redirected to files (`redirectTestOutputToFile=true`). On a build failure, read the
+reports rather than the build console:
+
+* Integration tests: `integration/target/failsafe-reports/`
+* Unit tests: `integration/target/surefire-reports/`
+* Archetype self-test generated project: `archetype/target/test-classes/projects/full/project/`
+
+== Generating the Maven site locally
+
+[source,powershell]
+----
+# Generate the site for the integration module only
+.\mvnw.cmd site -pl integration
+----
+
+The output lands in `integration/target/site/`. Open `integration/target/site/index.html` in a browser to
+preview. No Docker or running database is needed to generate the site.
+
+== Module structure
+
+The root `pom.xml` is an aggregator over two modules:
+
+|===
+| Module | Artifact | Purpose
+
+| `integration/`
+| `database-audits-spring-boot-integration`
+| Published production artifact — Spring wiring for database-audits-core.
+
+| `archetype/`
+| `database-audits-spring-boot-integration-archetype`
+| Maven archetype that scaffolds the example suite into a consumer's project, and the end-to-end test of the wiring.
+|===
+
+`clean install` at the root builds both. Use `install` (not `verify`) so the archetype's generate-and-run IT
+resolves the freshly built integration artifact from the local Maven repository.

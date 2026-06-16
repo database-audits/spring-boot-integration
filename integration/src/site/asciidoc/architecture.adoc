@@ -1,0 +1,40 @@
+= Architecture
+
+For the core library's design — `DatabasePlatform`, audit families, `SqlCapturingStatementInspector`,
+`QueryPlanExplainer`, and cross-cutting invariants — see the
+link:https://database-audits.github.io/core/architecture.html[core architecture reference].
+
+This page covers only the Spring-specific concerns of the integration module.
+
+== Design intent
+
+`database-audits-core` carries no dependency-injection annotations by design, so it can be used in any context.
+`database-audits-spring-boot-integration` provides the one piece core deliberately omits: Spring wiring.
+The entire production surface is a single class, `DatabaseAuditTestConfiguration`, a
+`@TestConfiguration(proxyBeanMethods = false)` that registers every core audit and its collaborators as
+explicit `@Bean` methods with constructor injection.
+
+== The shared-capturer invariant — Spring wiring
+
+The runtime audits read SQL from a `SqlCapturingStatementInspector`. The *same bean instance* must be
+Hibernate's `StatementInspector` and the instance injected into the runtime audit beans.
+`DatabaseAuditTestConfiguration` ensures this by creating the capturer as a `@Bean` and passing the *bean
+object* to Hibernate via a `HibernatePropertiesCustomizer`:
+
+[source,java]
+----
+@Bean
+HibernatePropertiesCustomizer sqlCaptureHibernatePropertiesCustomizer(
+        SqlCapturingStatementInspector inspector) {
+    return props -> props.put(JdbcSettings.STATEMENT_INSPECTOR, inspector);
+}
+----
+
+Passing the *class name* (a `String`) instead of the bean object would cause Hibernate to instantiate a second
+capturer that it fills but the audits never read.
+
+== Keeping beans in sync with core
+
+Each `@Bean` method in `DatabaseAuditTestConfiguration` calls a core audit or collaborator constructor
+directly; there is no component scan. When a core constructor signature changes, or an audit is added or
+removed, this class must change in lockstep — a compile failure against core is the intended signal.

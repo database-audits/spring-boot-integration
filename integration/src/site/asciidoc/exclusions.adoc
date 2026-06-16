@@ -1,0 +1,118 @@
+= Exclusions Guide
+
+Audits are strictest by default. When a violation is intentional — a legacy table without a primary key, a
+nullable FK for a nullable relationship, a known full-table migration statement — exclude it rather than
+weakening the audit. Exclusions are named and visible in the test source, making the intent explicit.
+
+== When to exclude vs. when to fix
+
+*Fix the schema* when the audit finding reflects a genuine structural problem (missing index, type mismatch).
+
+*Exclude* when:
+
+* A Liquibase migration or one-off script intentionally runs a full-table `UPDATE`/`DELETE`.
+* A relation is known to be small enough that a sequential scan is appropriate and intentional.
+* A FK is intentionally nullable (the relationship is optional).
+* A third-party table (e.g., from an embedded library) cannot be modified.
+
+== The `DatabaseAuditExcludes` builder
+
+`DatabaseAuditExcludes` is an immutable value object. Use `DatabaseAuditExcludes.none()` for no exclusions,
+or the fluent builder to name each exclusion:
+
+[source,java]
+----
+DatabaseAuditExcludes excludes = DatabaseAuditExcludes.builder()
+    .primaryKeyTables(Set.of("legacy_table_no_pk"))
+    .foreignKeyIndexConstraints(Set.of("fk_unindexed_by_design"))
+    .foreignKeyNotNullColumns(Set.of("order.customer_id"))   // table.column
+    .foreignKeyTypeMatchColumns(Set.of("event.entity_id"))   // table.column
+    .redundantIndexes(Set.of("idx_status_redundant"))
+    .planRelations(Set.of("small_lookup_table"))             // shared by WHERE/ORDER BY/JOIN audits
+    .planSqlFragments(List.of("UPDATE migration_flag"))      // matched as substring
+    .unconditionalMutationStatements(Set.of("DELETE FROM scratch_pad")) // exact match
+    .build();
+----
+
+Pass the exclusions to the facade:
+
+[source,java]
+----
+audits.assertCatalogClean(schema, excludes);
+audits.assertRuntimeClean(excludes);
+audits.assertAllClean(schema, excludes);
+----
+
+== Per-family exclusion reference
+
+=== Catalog exclusions
+
+|===
+| Builder method | Applies to | Match semantics
+
+| `primaryKeyTables(Set<String>)`
+| `PrimaryKeyPresenceAuditAssertion`
+| Exact table name.
+
+| `foreignKeyIndexConstraints(Set<String>)`
+| `ForeignKeyIndexAuditAssertion`
+| Exact FK constraint name.
+
+| `foreignKeyNotNullColumns(Set<String>)`
+| `ForeignKeyNotNullAuditAssertion`
+| Exact `table.column` string.
+
+| `foreignKeyTypeMatchColumns(Set<String>)`
+| `ForeignKeyTypeMatchAuditAssertion`
+| Exact `table.column` string.
+
+| `redundantIndexes(Set<String>)`
+| `RedundantIndexAuditAssertion`
+| Exact index name.
+|===
+
+`PrimaryKeyPresenceAuditAssertion` also excludes the Liquibase bookkeeping tables
+(`databasechangelog`, `databasechangeloglock`) automatically, without needing an explicit exclusion.
+
+=== Runtime exclusions
+
+|===
+| Builder method | Applies to | Match semantics
+
+| `planRelations(Set<String>)`
+| `WhereClauseIndexAuditAssertion`, `OrderByIndexAuditAssertion`, `JoinIndexAuditAssertion`
+| Exact relation (table) name. Any statement touching that relation is skipped.
+
+| `planSqlFragments(List<String>)`
+| `WhereClauseIndexAuditAssertion`, `OrderByIndexAuditAssertion`, `JoinIndexAuditAssertion`
+| Substring match against the full SQL statement.
+
+| `unconditionalMutationStatements(Set<String>)`
+| `UnconditionalMutationAuditAssertion`
+| Exact full statement match.
+|===
+
+== Passing exclusions to individual assertion beans
+
+Each assertion bean also accepts exclusions directly on its `assertClean(...)` overload:
+
+[source,java]
+----
+// Catalog: pass a Set of excluded table names
+primaryKeyPresenceAuditAssertion.assertClean(schema, Set.of("legacy_table_no_pk"));
+
+// Catalog: pass a Set of excluded FK constraint names
+foreignKeyIndexAuditAssertion.assertClean(schema, Set.of("fk_unindexed_by_design"));
+
+// Runtime: pass excluded relations and SQL fragments separately
+whereClauseIndexAuditAssertion.assertClean(
+    Set.of("small_lookup_table"),
+    List.of("UPDATE migration_flag")
+);
+
+// Runtime: pass exact statements to exclude from the mutation audit
+unconditionalMutationAuditAssertion.assertClean(Set.of("DELETE FROM scratch_pad"));
+----
+
+Using the `DatabaseAuditExcludes` builder and the facade is preferred when running multiple audits together,
+since it keeps all exclusions in one place.

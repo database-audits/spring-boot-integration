@@ -1,0 +1,276 @@
+= Archetype
+
+`database-audits-spring-boot-integration-archetype` scaffolds an audit test suite into a consumer's project.
+Two generation modes are supported, controlled by the `generateMode` property:
+
+* `project` (default) — generates the abstract base IT class, all catalog/JPA/runtime audit ITs,
+  and a Testcontainers PostgreSQL demo harness. Use this to start fresh with a self-contained,
+  runnable example.
+* `tests-only` — generates only the audit test classes (no demo app, no entities, no DataSource
+  setup, no `RepositoryWorkloadIT`). Use this when you already have a Spring Boot application and
+  only want the audit ITs dropped in alongside your existing test infrastructure — your own tests
+  prime the SQL capturer before the runtime audit ITs run.
+
+The archetype also doubles as the project's end-to-end test: the build generates and validates multiple
+samples on every `clean install` — a `project` sample that runs its integration tests against
+Testcontainers PostgreSQL, and several `tests-only` samples (covering the default configuration,
+the `projectDirectory` option, and the `parentClass` option) that compile the generated sources to
+verify generation correctness.
+
+Run `archetype:generate` from any directory. Use `-DoutputDirectory` to control where the generated
+project is written, or omit it to generate in the current directory.
+
+NOTE: Generation is *not* idempotent. In `project` mode the plugin refuses to generate into a directory
+that already contains a `pom.xml`. In `tests-only` mode the post-generate copy step silently overwrites
+any existing file of the same name — see the <<_generate_tests_only_for_an_existing_project,tests-only section>>
+for the full warning.
+
+== Generate the full project
+
+[source,shell]
+----
+mvn archetype:generate -DinteractiveMode=false \
+  -DarchetypeGroupId=io.github.database-audits \
+  -DarchetypeArtifactId=database-audits-spring-boot-integration-archetype \
+  -DarchetypeVersion=1.0.0-SNAPSHOT \
+  -DgenerateMode=project \
+  -DgroupId=com.example \
+  -DartifactId=demo \
+  -Dpackage=com.example.demo \
+  -DschemaName=public \
+  -DschemaPropertyName=database.datasource.schema-name \
+  -DparentClass=com.example.MySpringTestBase \
+  -DdatabaseAuditsVersion=1.0.0-SNAPSHOT \
+  -DspringBootVersion=4.1.0 \
+  -DpostgresImage=postgres:16 \
+  -DoutputDirectory=/path/to/output
+----
+
+== Generate tests only (for an existing project)
+
+*Point `-DoutputDirectory` at a pom-less scratch directory* (e.g. `/tmp/audit-scratch`) — the plugin refuses
+to generate into a directory containing a `pom.xml`, and when run from inside a Maven project it tries to add
+the result as a `<module>`. The scratch location avoids both pitfalls; only the post-generate copy step writes
+to your project.
+
+Set `-DprojectDirectory` to your project root: an absolute path, or a path relative to the directory you
+run the command from — use `.` when you run from the project root itself. The post-generate script
+copies the generated `src/` tree into `projectDirectory` and deletes the scratch directory.
+
+WARNING: The post-generate copy step *silently overwrites any existing file of the same name* in
+`-DprojectDirectory` without prompting or backing up. Re-running generation on a project that already
+contains generated files will clobber any customizations you have made to them. Commit or back up
+your changes before regenerating.
+
+[source,shell]
+----
+# Run from your project root. -DoutputDirectory is a throwaway scratch dir; -DprojectDirectory=. is your project.
+mvn archetype:generate -DinteractiveMode=false \
+  -DarchetypeGroupId=io.github.database-audits \
+  -DarchetypeArtifactId=database-audits-spring-boot-integration-archetype \
+  -DarchetypeVersion=1.0.0-SNAPSHOT \
+  -DgenerateMode=tests-only \
+  -DgroupId=com.example \
+  -DartifactId=demo-audit-tests \
+  -Dpackage=com.example.demo \
+  -DschemaName=public \
+  -DschemaPropertyName=database.datasource.schema-name \
+  -DparentClass=com.example.MySpringTestBase \
+  -DdatabaseAuditsVersion=1.0.0-SNAPSHOT \
+  -DspringBootVersion=4.1.0 \
+  -DoutputDirectory=/tmp/audit-scratch \
+  -DprojectDirectory=.
+----
+
+NOTE: On PowerShell, replace each trailing `\` with a backtick (`` ` ``) as the very last character on
+the line — no trailing space.
+
+== Properties
+
+All properties have defaults; none need to be specified unless the default is wrong for your project.
+Pass only the ones that differ.
+
+|===
+| Property | Default | Modes | Description
+
+| `generateMode`
+| `project`
+| —
+| Generation mode. `project` generates the full demo harness plus audit ITs. `tests-only` generates only the audit ITs, writing files directly into your existing project tree — no `pom.xml`, no demo harness.
+
+| `schemaName`
+| `public`
+| both
+| Database schema the catalog audits scan. Written as the value of `schemaPropertyName` in `application.properties` (project mode) or read from your existing configuration (tests-only mode).
+
+| `schemaPropertyName`
+| `database.datasource.schema-name`
+| both
+| Spring property key the catalog ITs read via `@Value` to obtain the schema name. Set this to match the property key your application already uses so the audit ITs share your existing configuration.
+
+| `parentClass`
+| `none`
+| both
+| Fully qualified class name of your existing Spring Boot test base class, e.g. `com.example.MySpringTestBase`. When set, each audit IT extends it directly and `AbstractDatabaseAuditIT` is not generated. Your class must carry `@SpringBootTest` and `@Import(DatabaseAuditTestConfiguration.class)`. Leave as `none` to generate `AbstractDatabaseAuditIT` as the shared base.
+
+| `databaseAuditsVersion`
+| `1.0.0-SNAPSHOT`
+| project only
+| Version of `database-audits-spring-boot-integration` written into the generated `pom.xml`. Not used in `tests-only` mode — add the dependency manually to your own `pom.xml`.
+
+| `springBootVersion`
+| `4.1.0`
+| project only
+| Spring Boot parent version written into the generated `pom.xml`. Not used in `tests-only` mode.
+
+| `postgresImage`
+| `postgres:16`
+| project only
+| Testcontainers PostgreSQL image used by `DemoPostgresTestConfig`. Override to pin a specific version, e.g. `postgres:17`. Not used in `tests-only` mode.
+
+| `projectDirectory`
+| (empty)
+| tests-only only
+| Your project root — absolute or relative to where you run the command (`.` for current directory). Set alongside a scratch `-DoutputDirectory` when generating into an existing project. When omitted, files land under `-DoutputDirectory`. Resolved from the JVM system property (not archetype metadata); relative values resolve against `PWD`, falling back to `user.dir`.
+
+|===
+
+== What gets generated
+
+=== `generateMode=project` (default)
+
+----
+<artifactId>/
+├── pom.xml                              (Spring Boot parent, integration dependency, Failsafe config)
+└── src/test/
+    ├── java/<package>/
+    │   ├── AbstractDatabaseAuditIT.java  (@SpringBootTest + @Import(DatabaseAuditTestConfiguration.class))
+    │   ├── DemoApplication.java          (@SpringBootApplication for the test harness)
+    │   ├── app/
+    │   │   ├── Parent.java               (JPA entity)
+    │   │   ├── ParentRepository.java
+    │   │   ├── Child.java                (JPA entity with FK to Parent)
+    │   │   ├── ChildRepository.java
+    │   │   └── DemoPostgresTestConfig.java (Testcontainers container + DynamicPropertyRegistrar)
+    │   ├── catalog/
+    │   │   ├── ForeignKeyIndexAuditIT.java
+    │   │   ├── ForeignKeyNotNullAuditIT.java
+    │   │   ├── ForeignKeyTypeMatchAuditIT.java
+    │   │   ├── PrimaryKeyPresenceAuditIT.java
+    │   │   └── RedundantIndexAuditIT.java
+    │   ├── jpa/
+    │   │   └── SchemaEntityValidationAuditIT.java
+    │   └── runtime/
+    │       ├── RepositoryWorkloadIT.java  (@Order(Integer.MIN_VALUE) — primes SQL capture)
+    │       ├── JoinIndexAuditIT.java
+    │       ├── OrderByIndexAuditIT.java
+    │       ├── UnconditionalMutationAuditIT.java
+    │       └── WhereClauseIndexAuditIT.java
+    └── resources/
+        ├── application.properties         (schema-name, ddl-auto=none, Liquibase changelog path)
+        ├── junit-platform.properties      (ClassOrderer$OrderAnnotation enabled)
+        └── db/changelog/
+            └── db.changelog-master.xml    (parent + child tables with indexes)
+----
+
+=== `generateMode=tests-only`
+
+The audit test classes are written directly into your project root (the `-DprojectDirectory` you set,
+falling back to `-DoutputDirectory` when omitted), not inside an `<artifactId>` subdirectory. No
+`pom.xml` is generated — the classes are meant to be added to your existing build.
+
+----
+src/test/
+├── java/<package>/
+│   ├── AbstractDatabaseAuditIT.java  (@SpringBootTest + @Import(DatabaseAuditTestConfiguration.class))
+│   ├── catalog/
+│   │   ├── ForeignKeyIndexAuditIT.java
+│   │   ├── ForeignKeyNotNullAuditIT.java
+│   │   ├── ForeignKeyTypeMatchAuditIT.java
+│   │   ├── PrimaryKeyPresenceAuditIT.java
+│   │   └── RedundantIndexAuditIT.java
+│   ├── jpa/
+│   │   └── SchemaEntityValidationAuditIT.java
+│   └── runtime/
+│       ├── JoinIndexAuditIT.java
+│       ├── OrderByIndexAuditIT.java
+│       ├── UnconditionalMutationAuditIT.java
+│       └── WhereClauseIndexAuditIT.java
+└── resources/
+    └── junit-platform.properties      (ClassOrderer$OrderAnnotation enabled)
+----
+
+`RepositoryWorkloadIT` is *not* generated in this mode — your existing tests already prime the SQL
+capturer. The runtime audit ITs are annotated `@Order(Integer.MAX_VALUE)` and run last, after your
+own test suite has exercised the repositories.
+
+Add the `database-audits-spring-boot-integration` dependency to your own `pom.xml`:
+
+[source,xml]
+----
+<dependency>
+  <groupId>io.github.database-audits</groupId>
+  <artifactId>database-audits-spring-boot-integration</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <scope>test</scope>
+</dependency>
+----
+
+== Running the generated project
+
+=== `generateMode=project`
+
+[source,shell]
+----
+cd demo
+# Requires Docker (Testcontainers starts PostgreSQL automatically)
+mvn verify
+----
+
+`DemoPostgresTestConfig` starts a shared PostgreSQL container for the test run and registers its JDBC URL
+(with `preferQueryMode=simple` appended) via `DynamicPropertyRegistrar`.
+
+=== `generateMode=tests-only`
+
+The generated tests compile against your existing Spring Boot test context. Run them using your normal
+`mvn verify` after wiring your own `DataSource` and `@SpringBootApplication`.
+
+== Notes on the generated code
+
+* Generated classes are pure Java with no Lombok. Dependencies are JUnit Jupiter, Spring Boot test, and this
+  integration artifact only.
+* `@Order` annotations use JUnit's `org.junit.jupiter.api.Order`, not Spring's.
+* `SchemaEntityValidationAuditIT` sets `@TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=validate")`;
+  reaching the test body means Hibernate's startup validation passed.
+* Each catalog IT uses constants (e.g., `EXCLUDED_TABLES`, `EXCLUDED_CONSTRAINTS`) to name known/intentional
+  exclusions. `ForeignKeyIndexAuditIT` and `PrimaryKeyPresenceAuditIT` call the no-exclusion overload directly
+  to show that pattern as well.
+
+== Using SNAPSHOT versions
+
+`archetype:generate` resolves archetypes using repositories declared in `~/.m2/settings.xml`, not
+in the project `pom.xml`. Maven's `settings.xml` schema requires repositories inside a `<profile>`
+— there is no top-level `<repositories>` element. For snapshot versions, add this to
+`~/.m2/settings.xml` once:
+
+[source,xml]
+----
+<settings>
+  <profiles>
+    <profile>
+      <id>central-snapshots</id>
+      <activation><activeByDefault>true</activeByDefault></activation>
+      <repositories>
+        <repository>
+          <id>central-snapshots</id>
+          <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+          <snapshots><enabled>true</enabled></snapshots>
+          <releases><enabled>false</enabled></releases>
+        </repository>
+      </repositories>
+    </profile>
+  </profiles>
+</settings>
+----
+
+GA releases resolve from Maven Central with no extra configuration.

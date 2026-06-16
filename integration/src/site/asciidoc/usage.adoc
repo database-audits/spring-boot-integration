@@ -1,0 +1,270 @@
+= Usage
+
+== Prerequisites
+
+Your test context must supply:
+
+* A `DataSource` bean (JDBC connection to your database).
+* A JPA `EntityManagerFactory` (required by the JPA audit family).
+* Spring Boot test infrastructure (typically `@SpringBootTest`).
+* A schema-qualified JDBC URL with `preferQueryMode=simple` appended when targeting PostgreSQL
+  (required by the runtime audit family — see <<postgresql-jdbc-requirement>> below).
+
+== Enabling the audits
+
+Add `@Import(DatabaseAuditTestConfiguration.class)` to your test base class. This registers every audit bean,
+their collaborators, and the SQL-capturing `StatementInspector` with Hibernate in one step.
+
+[source,java]
+----
+@SpringBootTest
+@Import(DatabaseAuditTestConfiguration.class)
+public abstract class AbstractDatabaseAuditIT {
+
+    @Value("${database.datasource.schema-name}")
+    protected String schema;
+
+    @Autowired
+    protected DatabaseAuditAssertions audits;
+}
+----
+
+== Audit families
+
+For a full description of what each audit detects, finding format, and exclusion types, see the
+link:https://database-audits.github.io/core/audits.html[core audit reference].
+
+=== Catalog audits
+
+Catalog audits query database metadata (information schema / system catalogs). They run on every supported
+platform and need no special JDBC configuration.
+
+Call via the facade:
+
+[source,java]
+----
+audits.assertCatalogClean(schema);
+----
+
+Or with exclusions:
+
+[source,java]
+----
+audits.assertCatalogClean(schema, DatabaseAuditExcludes.builder()
+    .primaryKeyTables(Set.of("some_legacy_table"))
+    .foreignKeyIndexConstraints(Set.of("fk_known_unindexed"))
+    .build());
+----
+
+=== JPA audit
+
+The JPA audit validates that Hibernate's entity model matches the live database schema. It runs during
+`@SpringBootTest` context startup when `spring.jpa.hibernate.ddl-auto=validate` is set, and the assertion
+confirms that startup succeeded (reaching the test body means Hibernate's validation passed).
+
+[source,java]
+----
+audits.assertJpaClean();
+----
+
+=== Runtime audits
+
+Runtime audits intercept every SQL statement executed during the test via Hibernate's `StatementInspector`. The
+plan-based audits (`WhereClauseIndexAudit`, `OrderByIndexAudit`, `JoinIndexAudit`) additionally analyze each
+statement via `EXPLAIN` and are *PostgreSQL 16+ only*. `UnconditionalMutationAudit` uses a token scan and runs
+on every supported platform.
+
+[[postgresql-jdbc-requirement]]
+==== PostgreSQL JDBC requirement: `preferQueryMode=simple`
+
+The plan-based audits call `EXPLAIN (GENERIC_PLAN, FORMAT JSON)` on each captured parameterized statement
+(`$1`, `$2`, …), which only works over PostgreSQL's *simple query protocol*. The driver's default extended
+protocol sends parameters separately, so PostgreSQL skips every parameterized statement — the audit then fails
+its vacuous-run guard with `IllegalStateException`.
+
+Add `preferQueryMode=simple` to the *test* datasource JDBC URL. Never add it to a production URL.
+
+*Static JDBC URL*
+
+When the database host and port are fixed (local database, fixed Docker container):
+
+[source,properties]
+----
+# src/test/resources/application.properties (or application-test.properties)
+spring.datasource.url=jdbc:postgresql://localhost:5432/mydb?preferQueryMode=simple
+----
+
+*Testcontainers `DynamicPropertyRegistrar`* (recommended for CI)
+
+Configure the parameter on the container before it starts (Testcontainers assigns a random port, so the URL
+cannot be hardcoded):
+
+[source,java]
+----
+private static final PostgreSQLContainer<?> POSTGRES =
+    new PostgreSQLContainer<>(DockerImageName.parse("postgres:16"));
+static {
+    POSTGRES.withUrlParam("preferQueryMode", "simple");  // must be before start()
+    POSTGRES.start();
+}
+
+@Bean
+DynamicPropertyRegistrar postgresProperties() {
+    return registry -> registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+}
+----
+
+Or append it manually when you do not control the container setup:
+
+[source,java]
+----
+registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?preferQueryMode=simple");
+----
+
+*`docker-maven-plugin` with dynamic port*
+
+When using the fabric8 `docker-maven-plugin` with a randomly assigned host port, bind the container port to a
+Maven property and pass the assembled URL as a Failsafe system property:
+
+[source,xml]
+----
+<!-- docker-maven-plugin: bind random host port to ${pg.port} -->
+<image>
+    <name>postgres:16</name>
+    <run>
+        <ports>
+            <port>pg.port:5432</port>
+        </ports>
+    </run>
+</image>
+
+<!-- maven-failsafe-plugin: pass the assembled URL as a JVM system property -->
+<systemPropertyVariables>
+    <spring.datasource.url>
+        jdbc:postgresql://localhost:${pg.port}/mydb?preferQueryMode=simple
+    </spring.datasource.url>
+</systemPropertyVariables>
+----
+
+Spring Boot reads `spring.datasource.url` from JVM system properties, so no `application.properties` entry is
+needed. With a fixed port mapping (`<port>5432:5432</port>`), use the static JDBC URL approach instead.
+
+*Negative impacts*
+
+Switching to the simple query protocol has trade-offs that are acceptable in test contexts but not in production:
+
+|===
+| Impact | Notes
+
+| No server-side plan caching
+| PostgreSQL re-parses and re-plans every query on each execution. Negligible under test load.
+
+| Text wire format
+| Simple protocol transfers result rows as text, not binary — slightly larger payloads and slower
+  deserialization for numeric and date types. Not measurable in tests.
+
+| No statement pipelining
+| The extended protocol can send multiple queries in-flight; simple cannot. Only matters at high throughput,
+  not in unit/integration tests.
+|===
+
+==== SQL capture ordering
+
+The runtime audits read SQL that was captured during the test run. To ensure all repository calls are captured
+before the audits check them, *run the workload test first* using JUnit's `@Order`:
+
+[source,java]
+----
+// Runs first — exercises your repositories to populate the SQL capture buffer.
+@Order(Integer.MIN_VALUE)
+class RepositoryWorkloadIT extends AbstractDatabaseAuditIT {
+
+    @Autowired
+    private MyRepository myRepository;
+
+    @Test
+    void primeRepositoryWorkload() {
+        myRepository.findAll();
+        myRepository.findById(1L);
+        // ... other calls to exercise
+    }
+}
+
+// Runs last — checks the captured SQL.
+@Order(Integer.MAX_VALUE)
+class WhereClauseIndexAuditIT extends AbstractDatabaseAuditIT {
+
+    @Test
+    void assertWhereClauseIndexClean() {
+        audits.assertRuntimeClean();
+    }
+}
+----
+
+Enable `ClassOrderer$OrderAnnotation` in `junit-platform.properties`:
+
+[source,properties]
+----
+junit.jupiter.testclass.order.default=org.junit.jupiter.api.ClassOrderer$OrderAnnotation
+----
+
+Use *JUnit's* `@Order` (`org.junit.jupiter.api.Order`), not Spring's.
+
+=== Running all families at once
+
+`assertAllClean(schema)` runs all three families in one call and aggregates any failures into a single
+`AssertionError` rather than stopping at the first:
+
+[source,java]
+----
+// Runs last — after the workload test primes the SQL capture.
+@Order(Integer.MAX_VALUE)
+class AllAuditsIT extends AbstractDatabaseAuditIT {
+
+    @Test
+    void assertAllClean() {
+        audits.assertAllClean(schema);
+    }
+}
+----
+
+With exclusions:
+
+[source,java]
+----
+audits.assertAllClean(schema, DatabaseAuditExcludes.builder()
+    .primaryKeyTables(Set.of("legacy_table_no_pk"))
+    .planRelations(Set.of("small_lookup_table"))
+    .build());
+----
+
+Since `assertAllClean` includes the runtime audits, the ordering setup from <<_sql_capture_ordering>> applies.
+
+== Using individual assertion beans
+
+Each audit has a dedicated assertion bean you can `@Autowired` directly for fine-grained control:
+
+[source,java]
+----
+@Autowired
+private ForeignKeyIndexAuditAssertion foreignKeyIndexAuditAssertion;
+
+@Autowired
+private WhereClauseIndexAuditAssertion whereClauseIndexAuditAssertion;
+
+@Test
+void assertForeignKeyIndexClean() {
+    foreignKeyIndexAuditAssertion.assertClean(schema, Set.of("fk_known_unindexed"));
+}
+
+@Test
+@Order(Integer.MAX_VALUE)
+void assertWhereClauseIndexClean() {
+    whereClauseIndexAuditAssertion.assertClean(
+        Set.of("large_lookup_table"),
+        List.of("SELECT * FROM audit_log")
+    );
+}
+----
+
+See link:exclusions.html[Exclusions] for the full exclusion API reference.

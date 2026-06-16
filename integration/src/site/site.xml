@@ -28,6 +28,12 @@
 
     <menu name="Using">
       <item name="Usage"              href="usage.html" />
+      <item name="Exclusions Guide"   href="exclusions.html" />
+      <item name="Archetype"          href="archetype.html" />
+    </menu>
+    <menu name="Reference">
+      <item name="Audits"             href="audits.html" />
+      <item name="Architecture"       href="architecture.html" />
     </menu>
     <menu name="Developing">
       <item name="Building"           href="building.html" />

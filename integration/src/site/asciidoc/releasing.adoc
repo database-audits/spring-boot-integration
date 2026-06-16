@@ -1,0 +1,70 @@
+= Releasing
+
+== Snapshot deployment
+
+After every successful build on `main`, the `deploy-snapshot.yml` workflow automatically deploys the
+`-SNAPSHOT` artifacts to Maven Central's snapshot repository. No manual action is needed.
+
+== Release process
+
+Releases are driven by `maven-release-plugin` and the `release.yml` GitHub Actions workflow.
+
+=== 1. Prepare the release
+
+Run `maven-release-plugin:prepare` locally. This removes the `-SNAPSHOT` suffix, commits the release version,
+creates a `v{version}` tag, and bumps to the next development snapshot:
+
+[source,powershell]
+----
+.\mvnw.cmd release:prepare
+----
+
+The plugin prompts for:
+
+* *Release version* (e.g., `1.0.0` — accepts the default stripped from `1.0.0-SNAPSHOT`).
+* *SCM tag* (e.g., `v1.0.0` — use the `v` prefix to match the workflow trigger).
+* *Next development version* (e.g., `1.1.0-SNAPSHOT`).
+
+Review the two commits and the tag that `release:prepare` creates before pushing.
+
+=== 2. Push the tag
+
+[source,powershell]
+----
+git push origin main --tags
+----
+
+=== 3. GitHub Actions takes over
+
+Pushing a `v*` tag triggers `release.yml`, which:
+
+. Builds the project with `-Prelease`.
+. Signs artifacts with GPG.
+. Attaches sources and javadoc JARs.
+. Deploys to Maven Central.
+
+The release profile (`-Prelease`) is defined in the parent POM and activates the GPG signing plugin
+and the sources/javadoc attachment plugins.
+
+== Post-release
+
+After the release workflow succeeds:
+
+* Verify the artifacts appear on Maven Central under
+  `io.github.database-audits:database-audits-spring-boot-integration` and
+  `io.github.database-audits:database-audits-spring-boot-integration-archetype`.
+* The `main` branch now carries the next `-SNAPSHOT` version (committed by `release:prepare`).
+* The Maven site is automatically rebuilt and deployed to GitHub Pages by `publish-docs.yml` once the
+  post-release snapshot build on `main` completes.
+
+== Rollback
+
+If `release:prepare` needs to be undone before pushing:
+
+[source,powershell]
+----
+.\mvnw.cmd release:rollback
+----
+
+This restores the `pom.xml` files and removes the local tag. It has no effect once the tag is pushed to the
+remote.

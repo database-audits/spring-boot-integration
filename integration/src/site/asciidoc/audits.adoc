@@ -1,0 +1,167 @@
+= Audits
+
+Ten audits organized into three families. Catalog and JPA audits run on every supported database platform;
+runtime audits are PostgreSQL-only.
+
+For a full description of what each audit detects, finding format, and exclusion types, see the
+link:https://database-audits.github.io/core/audits.html[core audit reference].
+
+== Catalog audits
+
+Catalog audits read database metadata (information schema / system catalogs). No SQL execution is analyzed.
+
+|===
+| Audit | Assertion Bean | Exclusion type
+
+| `PrimaryKeyPresenceAudit`
+| `PrimaryKeyPresenceAuditAssertion`
+| Table names (`Set<String>`). Liquibase bookkeeping tables are excluded automatically.
+
+| `ForeignKeyIndexAudit`
+| `ForeignKeyIndexAuditAssertion`
+| FK constraint names (`Set<String>`)
+
+| `ForeignKeyNotNullAudit`
+| `ForeignKeyNotNullAuditAssertion`
+| Column names in `table.column` format (`Set<String>`)
+
+| `ForeignKeyTypeMatchAudit`
+| `ForeignKeyTypeMatchAuditAssertion`
+| Column names in `table.column` format (`Set<String>`)
+
+| `RedundantIndexAudit`
+| `RedundantIndexAuditAssertion`
+| Index names (`Set<String>`)
+|===
+
+=== Catalog audit example
+
+[source,java]
+----
+@Autowired
+private PrimaryKeyPresenceAuditAssertion primaryKeyPresenceAuditAssertion;
+
+@Autowired
+private ForeignKeyIndexAuditAssertion foreignKeyIndexAuditAssertion;
+
+@Test
+void assertPrimaryKeysPresent() {
+    primaryKeyPresenceAuditAssertion.assertClean(schema);
+}
+
+@Test
+void assertForeignKeysIndexed() {
+    foreignKeyIndexAuditAssertion.assertClean(schema, Set.of("fk_legacy_unindexed_constraint"));
+}
+----
+
+== JPA audit
+
+|===
+| Audit | Assertion Bean | Exclusion type
+
+| `SchemaEntityValidationAudit`
+| `SchemaEntityValidationAuditAssertion`
+| None. Set `spring.jpa.hibernate.ddl-auto=validate` so Hibernate validates the schema at `@SpringBootTest` startup; reaching `assertClean()` confirms that validation passed.
+|===
+
+=== JPA audit example
+
+[source,java]
+----
+@TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=validate")
+class SchemaEntityValidationAuditIT extends AbstractDatabaseAuditIT {
+
+    @Autowired
+    private SchemaEntityValidationAuditAssertion schemaEntityValidationAuditAssertion;
+
+    @Test
+    void assertJpaSchemaClean() {
+        schemaEntityValidationAuditAssertion.assertClean();
+    }
+}
+----
+
+== Runtime audits
+
+Runtime audits intercept SQL statements via Hibernate's `StatementInspector`. They split into two groups by
+analysis technique.
+
+=== Plan-based audits (PostgreSQL 16+ only)
+
+`WhereClauseIndexAudit`, `OrderByIndexAudit`, and `JoinIndexAudit` call `EXPLAIN (GENERIC_PLAN, FORMAT JSON)` on
+each captured statement — a PostgreSQL-specific feature, so these audits are *PostgreSQL-only* and throw
+`UnsupportedOperationException` on any other platform. They also require `preferQueryMode=simple` on the test
+datasource JDBC URL. See link:usage.html#postgresql-jdbc-requirement[Usage — PostgreSQL JDBC requirement].
+
+|===
+| Audit | Assertion Bean | Exclusion types
+
+| `WhereClauseIndexAudit`
+| `WhereClauseIndexAuditAssertion`
+| Relation names (`Set<String>`), SQL fragments (`List<String>`)
+
+| `OrderByIndexAudit`
+| `OrderByIndexAuditAssertion`
+| Relation names (`Set<String>`), SQL fragments (`List<String>`)
+
+| `JoinIndexAudit`
+| `JoinIndexAuditAssertion`
+| Relation names (`Set<String>`), SQL fragments (`List<String>`)
+|===
+
+=== Token-scan audit (all platforms)
+
+`UnconditionalMutationAudit` detects full-table `UPDATE`/`DELETE` via a token scan of the captured SQL — no
+`EXPLAIN` needed. It runs on every supported database platform.
+
+|===
+| Audit | Assertion Bean | Exclusion types
+
+| `UnconditionalMutationAudit`
+| `UnconditionalMutationAuditAssertion`
+| Exact statement strings (`Set<String>`)
+|===
+
+=== Runtime audit example
+
+[source,java]
+----
+// Priming test: must run before runtime audit assertions.
+@Order(Integer.MIN_VALUE)
+class RepositoryWorkloadIT extends AbstractDatabaseAuditIT {
+
+    @Autowired
+    private ParentRepository parentRepository;
+
+    @Test
+    void primeWorkload() {
+        parentRepository.findAll();
+        parentRepository.findById(1L);
+    }
+}
+
+// Runtime audit: runs after priming.
+@Order(Integer.MAX_VALUE)
+class WhereClauseIndexAuditIT extends AbstractDatabaseAuditIT {
+
+    @Autowired
+    private WhereClauseIndexAuditAssertion whereClauseIndexAuditAssertion;
+
+    @Test
+    void assertWhereClauseIndexClean() {
+        whereClauseIndexAuditAssertion.assertClean();
+    }
+}
+----
+
+NOTE: `@Order` across test *classes* requires `ClassOrderer$OrderAnnotation` enabled in
+`junit-platform.properties`. See link:usage.html#_sql_capture_ordering[Usage — SQL capture ordering].
+
+== Assertion outcomes
+
+A finding is surfaced as an `AssertionError` (test *failure*), not an exception, so it appears as a
+discrete failing assertion in your test report with the audit's curated fix-oriented message. An
+`IllegalStateException` (test *error*) indicates a configuration problem: an unsupported platform, an empty
+SQL capture (vacuous run), or a missing `preferQueryMode=simple` on PostgreSQL (see
+link:usage.html#postgresql-jdbc-requirement[Usage — PostgreSQL JDBC requirement]).
