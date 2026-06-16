@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<archetype-descriptor
+    xmlns="http://maven.apache.org/plugins/maven-archetype-plugin/archetype-descriptor/1.1.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/plugins/maven-archetype-plugin/archetype-descriptor/1.1.0 https://maven.apache.org/xsd/archetype-descriptor-1.1.0.xsd"
+    name="database-audits-spring-boot">
+
+  <requiredProperties>
+    <!-- project generates the full demo harness (current behavior); tests-only generates only the audit
+         test classes (the harness files are removed by the post-generate script). -->
+    <requiredProperty key="generateMode">
+      <defaultValue>project</defaultValue>
+    </requiredProperty>
+    <!-- The schema the catalog audits scan (read by the example ITs via @Value). -->
+    <requiredProperty key="schemaName">
+      <defaultValue>public</defaultValue>
+    </requiredProperty>
+    <!-- The Spring property key the catalog ITs read via @Value to obtain the schema name. -->
+    <requiredProperty key="schemaPropertyName">
+      <defaultValue>database.datasource.schema-name</defaultValue>
+    </requiredProperty>
+    <!-- Optional. Fully qualified name of a base class for AbstractDatabaseAuditIT to extend.
+         Default 'none' means no explicit parent. Override with a real class to add extends + import. -->
+    <requiredProperty key="parentClass">
+      <defaultValue>none</defaultValue>
+    </requiredProperty>
+    <!-- Version of the database-audits Spring Boot integration the generated project depends on. -->
+    <requiredProperty key="databaseAuditsVersion">
+      <defaultValue>1.0.0-SNAPSHOT</defaultValue>
+    </requiredProperty>
+    <!-- Spring Boot parent version of the generated project. -->
+    <requiredProperty key="springBootVersion">
+      <defaultValue>4.1.0</defaultValue>
+    </requiredProperty>
+    <!-- The Testcontainers PostgreSQL image the demo harness starts. -->
+    <requiredProperty key="postgresImage">
+      <defaultValue>postgres:16</defaultValue>
+    </requiredProperty>
+  </requiredProperties>
+
+  <fileSets>
+    <!-- Audit IT sources: filtered (so ${package} resolves) and placed under the consumer package. -->
+    <fileSet filtered="true" packaged="true" encoding="UTF-8">
+      <directory>src/test/java</directory>
+      <includes>
+        <include>**/*.java</include>
+      </includes>
+    </fileSet>
+    <!-- Test resources: filtered (so ${schemaName} resolves) but not under the package. -->
+    <fileSet filtered="true" packaged="false" encoding="UTF-8">
+      <directory>src/test/resources</directory>
+      <includes>
+        <include>**/*.properties</include>
+        <include>**/*.xml</include>
+      </includes>
+    </fileSet>
+  </fileSets>
+</archetype-descriptor>

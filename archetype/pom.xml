@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.database-audits</groupId>
+    <artifactId>database-audits-parent</artifactId>
+    <version>1.0.0</version>
+    <relativePath>../../parent/pom.xml</relativePath>
+  </parent>
+
+  <artifactId>database-audits-spring-boot-integration-archetype</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <packaging>maven-archetype</packaging>
+
+  <name>Database Audits Spring Boot Integration Archetype</name>
+  <description>
+    Maven archetype that scaffolds a ready-to-run database-audits example suite — the base IT class, the
+    catalog/jpa/runtime audit ITs, and a Testcontainers PostgreSQL demo harness — into a consumer's project.
+  </description>
+
+  <developers>
+    <developer>
+      <id>jeffjensen</id>
+      <name>Jeff Jensen</name>
+      <email>jjensen@apache.org</email>
+    </developer>
+  </developers>
+
+  <ciManagement>
+    <system>GitHub Actions</system>
+    <url>https://github.com/database-audits/spring-boot/actions</url>
+  </ciManagement>
+  <issueManagement>
+    <system>GitHub Issues</system>
+    <url>https://github.com/database-audits/spring-boot/issues</url>
+  </issueManagement>
+  <scm>
+    <connection>scm:git:https://github.com/database-audits/spring-boot.git</connection>
+    <developerConnection>scm:git:https://github.com/database-audits/spring-boot.git</developerConnection>
+    <url>https://github.com/database-audits/spring-boot</url>
+    <tag>HEAD</tag>
+  </scm>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.groovy</groupId>
+      <artifactId>groovy</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <extensions>
+      <!-- Provides the maven-archetype packaging/lifecycle (package -> archetype:jar, integration-test -> generate + build the sample). -->
+      <extension>
+        <groupId>org.apache.maven.archetype</groupId>
+        <artifactId>archetype-packaging</artifactId>
+        <version>3.2.1</version>
+      </extension>
+    </extensions>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-archetype-plugin</artifactId>
+          <version>3.2.1</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+    <plugins>
+      <!-- The maven-archetype packaging lifecycle does not bind compile or test phases by default,
+           so these executions are added explicitly to compile test sources and run unit tests. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>default-testCompile</id>
+            <phase>test-compile</phase>
+            <goals>
+              <goal>testCompile</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- Scope surefire to only our own test classes. The archetype:integration-test goal (bound to
+           integration-test phase, which runs after test) compiles the generated sample project under
+           target/test-classes/projects/, so surefire must not scan that subtree. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>default-test</id>
+            <phase>test</phase>
+            <goals>
+              <goal>test</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <includes>
+            <include>io/github/databaseaudits/**/*Test.java</include>
+          </includes>
+        </configuration>
+      </plugin>
+      <!-- The archetype module has no failsafe ITs of its own; its end-to-end verification is
+           archetype:integration-test. Skip failsafe so it does not try to load the generated
+           project's *IT.class files from target/test-classes/projects/. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
