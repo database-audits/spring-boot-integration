@@ -81,6 +81,35 @@
       </plugins>
     </pluginManagement>
     <plugins>
+      <!-- Fail early with a clear message if Docker is not running (required for Testcontainers). -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>check-docker-running</id>
+            <phase>validate</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <exec executable="docker" resultproperty="docker.exit.code" failonerror="false"
+                      outputproperty="docker.output" errorproperty="docker.error">
+                  <arg value="info"/>
+                </exec>
+                <fail message="Docker is not running. Please start Docker (Rancher Desktop) before running the build.">
+                  <condition>
+                    <not>
+                      <equals arg1="${docker.exit.code}" arg2="0"/>
+                    </not>
+                  </condition>
+                </fail>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <!-- The maven-archetype packaging lifecycle does not bind compile or test phases by default,
            so these executions are added explicitly to compile test sources and run unit tests. -->
       <plugin>
