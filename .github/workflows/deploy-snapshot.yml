@@ -38,7 +38,7 @@ jobs:
         env:
           CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           CENTRAL_TOKEN: ${{ secrets.CENTRAL_TOKEN }}
-        run: ${{ env.MAVEN_COMMAND }} ${{ env.MAVEN_CLI_COMMON }} deploy -DskipTests -Darchetype.test.skip=true
+        run: ${{ env.MAVEN_COMMAND }} ${{ env.MAVEN_CLI_COMMON }} source:jar-no-fork deploy -DskipTests -Darchetype.test.skip=true
 
       - name: Skip (not a snapshot version)
         if: "!endsWith(steps.ver.outputs.version, '-SNAPSHOT')"
