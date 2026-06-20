@@ -61,6 +61,28 @@
   </dependencies>
 
   <build>
+    <!-- archetype:integration-test reads its test projects from target/test-classes/projects (the mojo's
+         testProjectsDirectory default, ${project.build.testOutputDirectory}/projects). The maven-archetype
+         lifecycle copies src/test/resources there via process-test-resources, so filtering archetype.properties
+         expands databaseAuditsVersion=@project.version@ to the current build version before the IT mojo reads
+         it — keeping the generated sample project depending on the freshly built integration artifact across
+         release version bumps. The inherited Spring Boot resource config uses @...@ delimiters (not ${...}),
+         so the property uses @project.version@. Only archetype.properties is filtered; the rest is copied verbatim. -->
+    <testResources>
+      <testResource>
+        <directory>src/test/resources</directory>
+        <filtering>true</filtering>
+        <includes>
+          <include>**/archetype.properties</include>
+        </includes>
+      </testResource>
+      <testResource>
+        <directory>src/test/resources</directory>
+        <excludes>
+          <exclude>**/archetype.properties</exclude>
+        </excludes>
+      </testResource>
+    </testResources>
     <extensions>
       <!-- Provides the maven-archetype packaging/lifecycle (package -> archetype:jar, integration-test -> generate + build the sample). -->
       <extension>
