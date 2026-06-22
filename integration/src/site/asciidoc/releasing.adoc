@@ -1,70 +1,42 @@
 = Releasing
 
+Releases publish to Maven Central from CI: you run one command locally, then approve the deploy in GitHub
+Actions. Driven by `maven-release-plugin` (parent POM) and `release.yml`.
+
+== Prerequisites (one-time)
+
+* Repo secrets: `CENTRAL_USERNAME`, `CENTRAL_TOKEN`, `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE`.
+* A `release` GitHub environment with yourself as a required reviewer — this is the approval gate before publish.
+* Docker running locally: `release:prepare` runs `verify`, which includes the archetype integration test.
+
 == Snapshot deployment
 
-After every successful build on `main`, the `deploy-snapshot.yml` workflow automatically deploys the
-`-SNAPSHOT` artifacts to Maven Central's snapshot repository. No manual action is needed.
+Every successful `main` build deploys the `-SNAPSHOT` to Maven Central via `deploy-snapshot.yml`. No action needed.
 
-== Release process
+== Releasing
 
-Releases are driven by `maven-release-plugin` and the `release.yml` GitHub Actions workflow.
-
-=== 1. Prepare the release
-
-Run `maven-release-plugin:prepare` locally. This removes the `-SNAPSHOT` suffix, commits the release version,
-creates a `v{version}` tag, and bumps to the next development snapshot:
-
+. Run `release:prepare` locally. It runs `clean verify`, strips `-SNAPSHOT`, commits the release version, tags
+`v<version>`, bumps to the next snapshot, and *pushes the commits and tag automatically* (`pushChanges` defaults
+to true):
++
 [source,powershell]
 ----
 .\mvnw.cmd release:prepare
 ----
++
+Prompts for the release version, tag (`v<version>`), and next development version; the defaults are usually right.
 
-The plugin prompts for:
+. The pushed `v*` tag triggers `release.yml`, which *waits for your approval* on the `release` environment. Approve
+the run in the Actions tab. It then deploys with `-Prelease` (GPG-signed, sources + javadoc) and auto-publishes to
+Central. Tests are not re-run (`-DskipTests -Darchetype.test.skip=true`); `release:prepare` already verified them.
 
-* *Release version* (e.g., `1.0.0` — accepts the default stripped from `1.0.0-SNAPSHOT`).
-* *SCM tag* (e.g., `v1.0.0` — use the `v` prefix to match the workflow trigger).
-* *Next development version* (e.g., `1.1.0-SNAPSHOT`).
+. Confirm the artifacts under `io.github.database-audits:database-audits-spring-boot-integration` (and
+`…-archetype`). `main` now carries the next `-SNAPSHOT`, and `publish-docs.yml` redeploys the site after the
+following `main` build.
 
-Review the two commits and the tag that `release:prepare` creates before pushing.
+== Aborting
 
-=== 2. Push the tag
-
-[source,powershell]
-----
-git push origin main --tags
-----
-
-=== 3. GitHub Actions takes over
-
-Pushing a `v*` tag triggers `release.yml`, which:
-
-. Builds the project with `-Prelease`.
-. Signs artifacts with GPG.
-. Attaches sources and javadoc JARs.
-. Deploys to Maven Central.
-
-The release profile (`-Prelease`) is defined in the parent POM and activates the GPG signing plugin
-and the sources/javadoc attachment plugins.
-
-== Post-release
-
-After the release workflow succeeds:
-
-* Verify the artifacts appear on Maven Central under
-  `io.github.database-audits:database-audits-spring-boot-integration` and
-  `io.github.database-audits:database-audits-spring-boot-integration-archetype`.
-* The `main` branch now carries the next `-SNAPSHOT` version (committed by `release:prepare`).
-* The Maven site is automatically rebuilt and deployed to GitHub Pages by `publish-docs.yml` once the
-  post-release snapshot build on `main` completes.
-
-== Rollback
-
-If `release:prepare` needs to be undone before pushing:
-
-[source,powershell]
-----
-.\mvnw.cmd release:rollback
-----
-
-This restores the `pom.xml` files and removes the local tag. It has no effect once the tag is pushed to the
-remote.
+Because `release:prepare` pushes immediately, the approval gate is the stop point: *reject* the pending `release`
+deployment in the Actions tab so nothing publishes, then drop what prepare pushed — delete the remote tag
+(`git push --delete origin v<version>`) and revert the two release commits on `main`. (`release:rollback` only
+helps if a `prepare` fails before it pushes.)
