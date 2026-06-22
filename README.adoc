@@ -27,20 +27,20 @@ ready to run against your existing Spring Boot test context.
 Add the `database-audits-spring-boot-integration` dependency to your `pom.xml` and run `mvn verify`.
 
 Use `generateMode=project` to generate a complete standalone example with a Testcontainers PostgreSQL harness.
-See link:https://database-audits.github.io/spring-boot/archetype.html[Archetype] for all properties and modes.
+See link:https://database-audits.github.io/spring-boot-integration/archetype.html[Archetype] for all properties and modes.
 
 For manual wiring without the archetype, see the
-link:https://database-audits.github.io/spring-boot/[Overview].
+link:https://database-audits.github.io/spring-boot-integration/[Overview].
 
 == Documentation
 
-Full documentation is published at https://database-audits.github.io/spring-boot[database-audits.github.io/spring-boot]:
+Full documentation is published at https://database-audits.github.io/spring-boot-integration[database-audits.github.io/spring-boot]:
 
-* https://database-audits.github.io/spring-boot/[Overview] — dependency, quick start, audit families
-* https://database-audits.github.io/spring-boot/usage.html[Usage] — prerequisites, enabling audits, ordering runtime tests
-* https://database-audits.github.io/spring-boot/audits.html[Audits] — what each audit detects
-* https://database-audits.github.io/spring-boot/exclusions.html[Exclusions] — suppressing known violations
-* https://database-audits.github.io/spring-boot/archetype.html[Archetype] — generate an audit suite into your project
+* https://database-audits.github.io/spring-boot-integration/[Overview] — dependency, quick start, audit families
+* https://database-audits.github.io/spring-boot-integration/usage.html[Usage] — prerequisites, enabling audits, ordering runtime tests
+* https://database-audits.github.io/spring-boot-integration/audits.html[Audits] — what each audit detects
+* https://database-audits.github.io/spring-boot-integration/exclusions.html[Exclusions] — suppressing known violations
+* https://database-audits.github.io/spring-boot-integration/archetype.html[Archetype] — generate an audit suite into your project
 
 == Building
 
@@ -52,4 +52,4 @@ Requires JDK 21 and Docker (for the archetype end-to-end test).
 ----
 
 The archetype module generates the example suite and runs it against a Testcontainers PostgreSQL container.
-See https://github.com/database-audits/spring-boot/actions[CI] for build status.
+See https://github.com/database-audits/spring-boot-integration/actions[CI] for build status.

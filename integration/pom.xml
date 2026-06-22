@@ -28,16 +28,16 @@
 
   <ciManagement>
     <system>GitHub Actions</system>
-    <url>https://github.com/database-audits/spring-boot/actions</url>
+    <url>https://github.com/database-audits/spring-boot-integration/actions</url>
   </ciManagement>
   <issueManagement>
     <system>GitHub Issues</system>
-    <url>https://github.com/database-audits/spring-boot/issues</url>
+    <url>https://github.com/database-audits/spring-boot-integration/issues</url>
   </issueManagement>
   <scm>
-    <connection>scm:git:https://github.com/database-audits/spring-boot.git</connection>
-    <developerConnection>scm:git:https://github.com/database-audits/spring-boot.git</developerConnection>
-    <url>https://github.com/database-audits/spring-boot</url>
+    <connection>scm:git:https://github.com/database-audits/spring-boot-integration.git</connection>
+    <developerConnection>scm:git:https://github.com/database-audits/spring-boot-integration.git</developerConnection>
+    <url>https://github.com/database-audits/spring-boot-integration</url>
     <tag>HEAD</tag>
   </scm>
 
@@ -99,7 +99,7 @@
   <distributionManagement>
     <site>
       <id>github-pages</id>
-      <url>https://database-audits.github.io/spring-boot</url>
+      <url>https://database-audits.github.io/spring-boot-integration</url>
     </site>
   </distributionManagement>
 </project>
