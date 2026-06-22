@@ -34,14 +34,16 @@ jobs:
     # the site step renders the unit and integration coverage reports from them.
     - name: Build project (runs tests for coverage data)
       run: ${{ env.MAVEN_COMMAND }} ${{ env.MAVEN_CLI_COMMON }} clean install
-    # site:stage assembles the per-module sites of this multi-module build into
-    # target/staging/, using the <distributionManagement><site> urls in the poms.
-    - name: Generate and stage Maven site
-      run: ${{ env.MAVEN_COMMAND }} ${{ env.MAVEN_CLI_COMMON }} site site:stage -Dproject.build.outputTimestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    # Only the integration module has site content (src/site); its <distributionManagement><site>
+    # url is the Pages root, so it is the published site. Build just that module (the same command
+    # building.adoc documents for local use). The archetype module has no site and no
+    # distributionManagement, which is what broke the previous reactor-wide `site site:stage`.
+    - name: Generate Maven site (integration module)
+      run: ${{ env.MAVEN_COMMAND }} ${{ env.MAVEN_CLI_COMMON }} site -pl integration -Dproject.build.outputTimestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     - name: Upload Pages artifact
       uses: actions/upload-pages-artifact@v5
       with:
-        path: target/staging/
+        path: integration/target/site/
 
   deploy:
     needs: build-site
