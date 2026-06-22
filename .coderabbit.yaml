@@ -1,0 +1,67 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+
+tone_instructions: >-
+  Prioritize correctness and the documented invariants over style. Code style
+  (immutability, JavaDoc, blank-line-after-brace) is enforced by the Maven build —
+  do not re-flag it.
+
+reviews:
+  profile: chill                  # few, high-signal comments
+  request_changes_workflow: false # solo maintainer — don't self-block merges
+  poem: false
+  collapse_walkthrough: true
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true # re-review every push (relevant after a rebase)
+    base_branches:
+      - main
+  path_filters:
+    - "!**/target/**"
+    - "!.jackknife/**"
+  path_instructions:
+    - path: "archetype/src/main/resources/archetype-resources/**"
+      instructions: >-
+        Velocity-filtered archetype templates, NOT plain sources. Literal '$' survives via
+        raw blocks: '#[[${]]#' -> '${', '#[[$]]#' -> '$'. Do NOT flag '$', '${...}',
+        '#[[ ]]#', or '@project.version@' as bugs — they are intentional placeholders.
+        Generated classes must stay pure: JDK + JUnit + this product's classes only
+        (no Lombok, no AssertJ). All @Order must be JUnit's org.junit.jupiter.api.Order,
+        never Spring's; runtime ITs use @Order(Integer.MAX_VALUE), RepositoryWorkloadIT
+        uses @Order(Integer.MIN_VALUE).
+    - path: "integration/src/main/java/**"
+      instructions: >-
+        Each @Bean in DatabaseAuditTestConfiguration mirrors a core audit constructor and
+        must stay in lockstep with core. Shared-capturer invariant: the SAME
+        SqlCapturingStatementInspector instance must be both Hibernate's StatementInspector
+        and the one injected into the audits (register the bean object, not the class name).
+        Plan-based audits (WhereClause/OrderBy/Join) are PostgreSQL-only and need a
+        DataSource URL carrying preferQueryMode=simple. No AssertJ in production code.
+    # Scope to real test source roots (any module's src/test/java) so these AssertJ rules
+    # do NOT also match the archetype template tests under archetype-resources/.../src/test/java
+    # (those must follow the "pure, no AssertJ" rule above).
+    - path: "*/src/test/java/**/*IT.java"
+      instructions: >-
+        Integration tests (failsafe). Method names: test<Method>_<Conditions>_<Outcome>.
+        Prefer AssertJ; assert whole objects; add .as("…") descriptions ending with a period.
+    - path: "*/src/test/java/**/*Test.java"
+      instructions: >-
+        Unit tests (surefire). Same naming and AssertJ conventions as ITs.
+  tools:
+    gitleaks:
+      enabled: true
+    actionlint:
+      enabled: true
+    # Optional deeper passes (noisier) — enable if you want broader coverage:
+    # languagetool: { enabled: true }   # prose in the .adoc docs
+    # markdownlint: { enabled: true }
+    # pmd:          { enabled: true }   # Java static analysis; pair with a ruleset
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "CLAUDE.md"
+  learnings:
+    scope: auto                   # remember corrections across PRs
