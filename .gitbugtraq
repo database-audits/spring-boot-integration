@@ -1,4 +1,4 @@
 [bugtraq "GitHub Issues"]
-	url = https://github.com/database-audits/spring-boot/issues/%BUGID%
+	url = https://github.com/database-audits/spring-boot-integration/issues/%BUGID%
 	loglinkregex = Refs: \\d+
 	logregex = \\d+

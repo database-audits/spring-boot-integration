@@ -52,4 +52,4 @@ Requires JDK 21 and Docker (for the archetype end-to-end test).
 ----
 
 The archetype module generates the example suite and runs it against a Testcontainers PostgreSQL container.
-See https://github.com/database-audits/spring-boot/actions[CI] for build status.
+See https://github.com/database-audits/spring-boot-integration/actions[CI] for build status.

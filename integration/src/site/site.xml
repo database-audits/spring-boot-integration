@@ -11,14 +11,14 @@
   <bannerLeft name="Database Audits" href="https://database-audits.github.io" target="_blank">
   </bannerLeft>
 
-  <bannerRight href="https://github.com/database-audits/spring-boot" target="_blank">
+  <bannerRight href="https://github.com/database-audits/spring-boot-integration" target="_blank">
     <image src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" width="48px" height="48px"/>
   </bannerRight>
 
   <body>
     <links>
-      <item name="main" href="https://github.com/database-audits/spring-boot/actions/workflows/build-any-branch.yml?query=branch%3Amain" target="_blank">
-        <image src="https://github.com/database-audits/spring-boot/actions/workflows/build-any-branch.yml/badge.svg?branch=main"/>
+      <item name="main" href="https://github.com/database-audits/spring-boot-integration/actions/workflows/build-any-branch.yml?query=branch%3Amain" target="_blank">
+        <image src="https://github.com/database-audits/spring-boot-integration/actions/workflows/build-any-branch.yml/badge.svg?branch=main"/>
       </item>
     </links>
 
