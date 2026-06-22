@@ -32,7 +32,7 @@ for the full warning.
 mvn archetype:generate -DinteractiveMode=false \
   -DarchetypeGroupId=io.github.database-audits \
   -DarchetypeArtifactId=database-audits-spring-boot-integration-archetype \
-  -DarchetypeVersion=1.0.0-SNAPSHOT \
+  -DarchetypeVersion=1.0.0 \
   -DgenerateMode=project \
   -DgroupId=com.example \
   -DartifactId=demo \
@@ -40,7 +40,7 @@ mvn archetype:generate -DinteractiveMode=false \
   -DschemaName=public \
   -DschemaPropertyName=database.datasource.schema-name \
   -DparentClass=com.example.MySpringTestBase \
-  -DdatabaseAuditsVersion=1.0.0-SNAPSHOT \
+  -DdatabaseAuditsVersion=1.0.0 \
   -DspringBootVersion=4.1.0 \
   -DpostgresImage=postgres:16 \
   -DoutputDirectory=/path/to/output
@@ -68,7 +68,7 @@ your changes before regenerating.
 mvn archetype:generate -DinteractiveMode=false \
   -DarchetypeGroupId=io.github.database-audits \
   -DarchetypeArtifactId=database-audits-spring-boot-integration-archetype \
-  -DarchetypeVersion=1.0.0-SNAPSHOT \
+  -DarchetypeVersion=1.0.0 \
   -DgenerateMode=tests-only \
   -DgroupId=com.example \
   -DartifactId=demo-audit-tests \
@@ -76,7 +76,7 @@ mvn archetype:generate -DinteractiveMode=false \
   -DschemaName=public \
   -DschemaPropertyName=database.datasource.schema-name \
   -DparentClass=com.example.MySpringTestBase \
-  -DdatabaseAuditsVersion=1.0.0-SNAPSHOT \
+  -DdatabaseAuditsVersion=1.0.0 \
   -DspringBootVersion=4.1.0 \
   -DoutputDirectory=/tmp/audit-scratch \
   -DprojectDirectory=.
@@ -114,7 +114,7 @@ Pass only the ones that differ.
 | Fully qualified class name of your existing Spring Boot test base class, e.g. `com.example.MySpringTestBase`. When set, each audit IT extends it directly and `AbstractDatabaseAuditIT` is not generated. Your class must carry `@SpringBootTest` and `@Import(DatabaseAuditTestConfiguration.class)`. Leave as `none` to generate `AbstractDatabaseAuditIT` as the shared base.
 
 | `databaseAuditsVersion`
-| `1.0.0-SNAPSHOT`
+| `1.0.0`
 | project only
 | Version of `database-audits-spring-boot-integration` written into the generated `pom.xml`. Not used in `tests-only` mode — add the dependency manually to your own `pom.xml`.
 
@@ -211,7 +211,7 @@ Add the `database-audits-spring-boot-integration` dependency to your own `pom.xm
 <dependency>
   <groupId>io.github.database-audits</groupId>
   <artifactId>database-audits-spring-boot-integration</artifactId>
-  <version>1.0.0-SNAPSHOT</version>
+  <version>1.0.0</version>
   <scope>test</scope>
 </dependency>
 ----
