@@ -42,6 +42,14 @@
     <tag>HEAD</tag>
   </scm>
 
+  <properties>
+    <!-- This module has no src/site; its documentation lives in the integration module's site
+         (archetype.adoc). Skip Maven site generation so a reactor-wide `mvn site` / `site:stage`
+         does not build (or try to stage) an empty archetype site. The published site is the
+         integration module's, generated on its own via `mvn site -pl integration`. -->
+    <maven.site.skip>true</maven.site.skip>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>org.apache.groovy</groupId>

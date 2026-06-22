@@ -18,6 +18,15 @@
     Reactor for the Spring Boot integration and the archetype that scaffolds and verifies its example test suite.
   </description>
 
+  <properties>
+    <!-- This aggregator has no src/site of its own; the published site is the integration module's
+         (generated via `mvn site -pl integration`). Skip site generation/staging here so a
+         reactor-wide `mvn site` / `site:stage` does not fail staging a site this pom has no
+         distributionManagement for. Not inherited: the modules' parent is database-audits-parent,
+         not this aggregator, so this applies to the aggregator alone. -->
+    <maven.site.skip>true</maven.site.skip>
+  </properties>
+
   <modules>
     <module>integration</module>
     <module>archetype</module>
