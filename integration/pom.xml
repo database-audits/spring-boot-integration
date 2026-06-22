@@ -99,7 +99,7 @@
   <distributionManagement>
     <site>
       <id>github-pages</id>
-      <url>https://database-audits.github.io/spring-boot</url>
+      <url>https://database-audits.github.io/spring-boot-integration</url>
     </site>
   </distributionManagement>
 </project>
