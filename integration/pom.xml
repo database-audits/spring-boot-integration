@@ -18,6 +18,10 @@
     Spring Boot test wiring for database-audits-core.
   </description>
 
+  <properties>
+    <database-audits-core.version>1.0.1</database-audits-core.version>
+  </properties>
+
   <developers>
     <developer>
       <id>jeffjensen</id>
@@ -46,7 +50,7 @@
       <dependency>
         <groupId>io.github.database-audits</groupId>
         <artifactId>database-audits-core</artifactId>
-        <version>1.0.0</version>
+        <version>${database-audits-core.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
