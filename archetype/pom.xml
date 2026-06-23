@@ -10,7 +10,7 @@
   </parent>
 
   <artifactId>database-audits-spring-boot-integration-archetype</artifactId>
-  <version>1.0.1-SNAPSHOT</version>
+  <version>1.0.1</version>
   <packaging>maven-archetype</packaging>
 
   <name>Database Audits Spring Boot Integration Archetype</name>
@@ -39,7 +39,7 @@
     <connection>scm:git:https://github.com/database-audits/spring-boot-integration.git</connection>
     <developerConnection>scm:git:https://github.com/database-audits/spring-boot-integration.git</developerConnection>
     <url>https://github.com/database-audits/spring-boot-integration</url>
-    <tag>HEAD</tag>
+    <tag>v1.0.1</tag>
   </scm>
 
   <properties>
