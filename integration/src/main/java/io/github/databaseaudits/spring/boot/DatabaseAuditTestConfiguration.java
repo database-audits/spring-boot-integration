@@ -64,6 +64,13 @@ import jakarta.persistence.EntityManagerFactory;
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class DatabaseAuditTestConfiguration {
+    /**
+     * Creates the configuration; the audit beans are registered by the
+     * {@code @Bean} methods.
+     */
+    public DatabaseAuditTestConfiguration() {
+    }
+
     @Bean
     SqlCapturingStatementInspector sqlCapturingStatementInspector() {
         return new SqlCapturingStatementInspector();
