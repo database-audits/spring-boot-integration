@@ -98,6 +98,10 @@ public class DatabaseAuditExcludes {
         private Set<String> redundantIndexes = Set.of();
         private Set<String> unconditionalMutationStatements = Set.of();
 
+        /** Creates a builder with every exclusion defaulting to empty. */
+        public Builder() {
+        }
+
         /**
          * Excludes intentionally-unindexed FK constraints from the foreign-key
          * index audit.
