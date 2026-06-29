@@ -19,7 +19,7 @@
   </description>
 
   <properties>
-    <database-audits-core.version>1.0.1</database-audits-core.version>
+    <database-audits-core.version>1.1.0</database-audits-core.version>
   </properties>
 
   <developers>
