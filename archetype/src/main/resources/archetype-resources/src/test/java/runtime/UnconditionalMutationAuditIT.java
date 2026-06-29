@@ -2,6 +2,9 @@ package ${package}.runtime;
 
 import java.util.Set;
 
+#if($disabledTests == 'true')
+import org.junit.jupiter.api.Disabled;
+#end
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +34,9 @@ public class UnconditionalMutationAuditIT extends AbstractDatabaseAuditIT {
     private UnconditionalMutationAuditAssertion unconditionalMutationAuditAssertion;
 
     @Test
+#if($disabledTests == 'true')
+    @Disabled("Generated as disabled; remove @Disabled to enable")
+#end
     void testNoUnconditionalMutations() {
         unconditionalMutationAuditAssertion.assertClean(EXCLUDED_STATEMENTS);
     }

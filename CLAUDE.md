@@ -136,7 +136,8 @@ mvn archetype:generate -DinteractiveMode=false `
   and `#[[$]]#` produces `$`.
 - **Properties** (`META-INF/maven/archetype-metadata.xml`): `generateMode` (`project`), `schemaName` (`public`),
   `schemaPropertyName` (`database.datasource.schema-name`), `parentClass` (`none`), `databaseAuditsVersion`
-  (`1.0.0-SNAPSHOT`), `springBootVersion` (`4.1.0`), `postgresImage` (`postgres:16`).
+  (`1.0.0-SNAPSHOT`), `springBootVersion` (`4.1.0`), `postgresImage` (`postgres:16`), `disabledTests` (`false`,
+  annotates every generated test method with JUnit's `@Disabled` when `true`).
   All have defaults; none are required. The self-test's `archetype.properties` must list every property that the
   templates reference — the IT mojo does not apply defaults the way `archetype:generate` does.
 - **`projectDirectory` is NOT a declared archetype property** (deliberately). `archetype:generate` therefore
