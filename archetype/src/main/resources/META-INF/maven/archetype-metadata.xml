@@ -36,6 +36,12 @@
     <requiredProperty key="postgresImage">
       <defaultValue>postgres:16</defaultValue>
     </requiredProperty>
+    <!-- When 'true', every generated test method is annotated with JUnit's @Disabled, so the suite is
+         generated and compiles but does not run. Default 'false' runs the audits. Useful for scaffolding the
+         suite into a project that does not pass it yet, then enabling audits one at a time. -->
+    <requiredProperty key="disabledTests">
+      <defaultValue>false</defaultValue>
+    </requiredProperty>
   </requiredProperties>
 
   <fileSets>

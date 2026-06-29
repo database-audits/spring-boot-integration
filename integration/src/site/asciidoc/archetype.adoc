@@ -128,6 +128,11 @@ Pass only the ones that differ.
 | project only
 | Testcontainers PostgreSQL image used by `DemoPostgresTestConfig`. Override to pin a specific version, e.g. `postgres:17`. Not used in `tests-only` mode.
 
+| `disabledTests`
+| `false`
+| both
+| When `true`, annotates every generated test method with JUnit's `@Disabled`, so the suite is generated and compiles but does not run. Useful for scaffolding the audits into a project that does not pass them yet — remove the `@Disabled` annotations to enable audits one at a time.
+
 | `projectDirectory`
 | (empty)
 | tests-only only

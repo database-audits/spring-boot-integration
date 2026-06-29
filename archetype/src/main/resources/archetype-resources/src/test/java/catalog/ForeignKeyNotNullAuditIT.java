@@ -2,6 +2,9 @@ package ${package}.catalog;
 
 import java.util.Set;
 
+#if($disabledTests == 'true')
+import org.junit.jupiter.api.Disabled;
+#end
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,6 +35,9 @@ public class ForeignKeyNotNullAuditIT extends AbstractDatabaseAuditIT {
     private String schema;
 
     @Test
+#if($disabledTests == 'true')
+    @Disabled("Generated as disabled; remove @Disabled to enable")
+#end
     void testEveryForeignKeyColumnIsConfiguredNotNullOrOptional() {
         foreignKeyNotNullAuditAssertion.assertClean(schema, EXCLUDED_COLUMNS);
     }

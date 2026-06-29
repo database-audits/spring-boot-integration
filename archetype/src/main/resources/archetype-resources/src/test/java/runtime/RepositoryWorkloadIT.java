@@ -1,5 +1,8 @@
 package ${package}.runtime;
 
+#if($disabledTests == 'true')
+import org.junit.jupiter.api.Disabled;
+#end
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 #if($generateMode == 'project')
@@ -45,6 +48,9 @@ class RepositoryWorkloadIT extends AbstractDatabaseAuditIT {
     private ChildRepository children;
 
     @Test
+#if($disabledTests == 'true')
+    @Disabled("Generated as disabled; remove @Disabled to enable")
+#end
     void primeSqlCaptureWithIndexableWorkload() {
         Parent parent = parents.save(new Parent("ACME"));
         children.save(new Child("widget", parent));
@@ -56,6 +62,9 @@ class RepositoryWorkloadIT extends AbstractDatabaseAuditIT {
     // TODO: @Autowired YourRepository yourRepository;
 
     @Test
+#if($disabledTests == 'true')
+    @Disabled("Generated as disabled; remove @Disabled to enable")
+#end
     void primeSqlCaptureWithRepositoryWorkload() {
         // TODO: Call your repository methods here to prime the SQL capturer.
         // Include queries that exercise WHERE, ORDER BY, and JOIN conditions.

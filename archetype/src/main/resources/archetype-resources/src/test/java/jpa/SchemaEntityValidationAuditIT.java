@@ -1,5 +1,8 @@
 package ${package}.jpa;
 
+#if($disabledTests == 'true')
+import org.junit.jupiter.api.Disabled;
+#end
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.TestPropertySource;
@@ -26,6 +29,9 @@ public class SchemaEntityValidationAuditIT extends AbstractDatabaseAuditIT {
     private SchemaEntityValidationAuditAssertion schemaEntityValidationAuditAssertion;
 
     @Test
+#if($disabledTests == 'true')
+    @Disabled("Generated as disabled; remove @Disabled to enable")
+#end
     void testEntitiesMatchSchema() {
         schemaEntityValidationAuditAssertion.assertClean();
     }

@@ -1,5 +1,8 @@
 package ${package}.catalog;
 
+#if($disabledTests == 'true')
+import org.junit.jupiter.api.Disabled;
+#end
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +30,9 @@ public class PrimaryKeyPresenceAuditIT extends AbstractDatabaseAuditIT {
     private String schema;
 
     @Test
+#if($disabledTests == 'true')
+    @Disabled("Generated as disabled; remove @Disabled to enable")
+#end
     void testEveryBaseTableHasPrimaryKey() {
         primaryKeyPresenceAuditAssertion.assertClean(schema);
     }

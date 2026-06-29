@@ -3,6 +3,9 @@ package ${package}.runtime;
 import java.util.List;
 import java.util.Set;
 
+#if($disabledTests == 'true')
+import org.junit.jupiter.api.Disabled;
+#end
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +38,9 @@ public class OrderByIndexAuditIT extends AbstractDatabaseAuditIT {
     private OrderByIndexAuditAssertion orderByIndexAuditAssertion;
 
     @Test
+#if($disabledTests == 'true')
+    @Disabled("Generated as disabled; remove @Disabled to enable")
+#end
     void testEveryOrderByIsServedByAnIndexNotAnExplicitSort() {
         orderByIndexAuditAssertion.assertClean(EXCLUDED_RELATIONS, EXCLUDED_SQL_FRAGMENTS);
     }
