@@ -20,6 +20,9 @@ import io.github.databaseaudits.spring.boot.assertion.SchemaEntityValidationAudi
  * it passed.
  */
 @TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=validate")
+#if($disabledTests == 'true')
+@Disabled("Generated as disabled; remove @Disabled to enable")
+#end
 #if($parentClass && $parentClass != '' && $parentClass != 'none')
 public class SchemaEntityValidationAuditIT extends ${simpleParentClass} {
 #else
@@ -29,9 +32,6 @@ public class SchemaEntityValidationAuditIT extends AbstractDatabaseAuditIT {
     private SchemaEntityValidationAuditAssertion schemaEntityValidationAuditAssertion;
 
     @Test
-#if($disabledTests == 'true')
-    @Disabled("Generated as disabled; remove @Disabled to enable")
-#end
     void testEntitiesMatchSchema() {
         schemaEntityValidationAuditAssertion.assertClean();
     }
