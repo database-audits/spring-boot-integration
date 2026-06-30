@@ -113,8 +113,9 @@ assertion API; these ITs show how to wire and call it. They mirror core's three 
   run *after* the SQL is captured. What actually enforces order is the priming test `RepositoryWorkloadIT`
   (`@Order(Integer.MIN_VALUE)`, runs first, via `junit-platform.properties` enabling
   `ClassOrderer$OrderAnnotation`). **All example classes must use JUnit's `@Order`, not Spring's.**
-- The JPA example sets `@TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=validate")`: the real check is
-  Hibernate's startup schema validation; reaching the test means it passed.
+- The JPA example runs under the default `ddl-auto=none`: `SchemaEntityValidationAudit` walks Hibernate's entity
+  mappings against the live schema and reports every mismatch in one run, instead of relying on Hibernate's
+  fail-fast `ddl-auto=validate` startup check (which aborts on the first mismatch).
 - Most show `EXCLUDED_*` exclusion constants (relations, SQL fragments, columns, indexes, statements) — the
   intended way for consumers to suppress known/intentional violations instead of weakening the audit.
   `ForeignKeyIndexAuditIT` and `PrimaryKeyPresenceAuditIT` call the no-exclusion overload directly.

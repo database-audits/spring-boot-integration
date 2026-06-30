@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Disabled;
 #end
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.TestPropertySource;
 
 #if($parentClass && $parentClass != '' && $parentClass != 'none')
 #set($simpleParentClass = $parentClass.replaceAll('.*\.', ''))
@@ -16,10 +15,10 @@ import ${package}.AbstractDatabaseAuditIT;
 import io.github.databaseaudits.spring.boot.assertion.SchemaEntityValidationAuditAssertion;
 
 /**
- * The {@code ddl-auto=validate} setting makes Hibernate validate entity↔schema at startup; reaching the test means
- * it passed.
+ * Validates that every JPA entity mapping matches the schema, reporting all mismatches in one run. It runs under
+ * the default {@code ddl-auto=none}: Hibernate's own {@code validate} fails fast on the first mismatch and aborts
+ * startup, so this audit walks the mappings against the live schema itself instead.
  */
-@TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=validate")
 #if($disabledTests == 'true')
 @Disabled("Generated as disabled; remove @Disabled to enable")
 #end

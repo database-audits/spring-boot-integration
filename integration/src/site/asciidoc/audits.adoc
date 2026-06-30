@@ -62,14 +62,13 @@ void assertForeignKeysIndexed() {
 
 | `SchemaEntityValidationAudit`
 | `SchemaEntityValidationAuditAssertion`
-| None. Set `spring.jpa.hibernate.ddl-auto=validate` so Hibernate validates the schema at `@SpringBootTest` startup; reaching `assertClean()` confirms that validation passed.
+| None. The audit walks Hibernate's entity mappings against the live schema and reports every mismatch (missing table, missing column, incompatible column type) in one run. Run under the default `ddl-auto=none`; do not set `ddl-auto=validate`, whose fail-fast startup check aborts the context on the first mismatch.
 |===
 
 === JPA audit example
 
 [source,java]
 ----
-@TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=validate")
 class SchemaEntityValidationAuditIT extends AbstractDatabaseAuditIT {
 
     @Autowired

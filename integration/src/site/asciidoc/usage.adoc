@@ -58,9 +58,10 @@ audits.assertCatalogClean(schema, DatabaseAuditExcludes.builder()
 
 === JPA audit
 
-The JPA audit validates that Hibernate's entity model matches the live database schema. It runs during
-`@SpringBootTest` context startup when `spring.jpa.hibernate.ddl-auto=validate` is set, and the assertion
-confirms that startup succeeded (reaching the test body means Hibernate's validation passed).
+The JPA audit validates that Hibernate's entity model matches the live database schema, reporting every mismatch
+(missing table, missing column, incompatible column type) in a single run. Run under the default `ddl-auto=none`:
+the audit performs the validation itself rather than relying on Hibernate's fail-fast `ddl-auto=validate` startup
+check, which aborts context startup on the first mismatch.
 
 [source,java]
 ----

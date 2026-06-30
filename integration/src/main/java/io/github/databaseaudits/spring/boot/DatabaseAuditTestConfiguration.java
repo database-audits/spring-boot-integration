@@ -92,8 +92,9 @@ public class DatabaseAuditTestConfiguration {
      * @param dataSource
      *                                the primary datasource to audit.
      * @param entityManagerFactory
-     *                                the primary entity-manager factory the JPA
-     *                                audit confirms.
+     *                                the primary entity-manager factory whose
+     *                                mappings the JPA audit validates against the
+     *                                schema.
      * @param sqlCapturer
      *                                the shared SQL capturer the runtime audits
      *                                read.
