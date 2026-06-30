@@ -75,8 +75,9 @@ public class DatabaseAuditSuite {
      *                                runtime audits inspect; its platform is
      *                                auto-detected from its metadata.
      * @param entityManagerFactory
-     *                                the entity-manager factory whose Hibernate
-     *                                startup validation the JPA audit confirms.
+     *                                the entity-manager factory whose entity
+     *                                mappings the JPA audit validates against the
+     *                                schema.
      * @param sqlCapturer
      *                                the SQL capturer the runtime audits read;
      *                                must be the same instance registered as the
@@ -110,7 +111,8 @@ public class DatabaseAuditSuite {
                 new RedundantIndexAudit(indexCatalog));
         this.schemaEntityValidationAuditAssertion =
                 new SchemaEntityValidationAuditAssertion(
-                        new SchemaEntityValidationAudit(entityManagerFactory));
+                        SchemaEntityValidationAudit.forEntityManagerFactory(
+                                entityManagerFactory, dataSource));
         this.joinIndexAuditAssertion = new JoinIndexAuditAssertion(
                 new JoinIndexAudit(queryPlanExplainer, sqlCapturer));
         this.orderByIndexAuditAssertion = new OrderByIndexAuditAssertion(

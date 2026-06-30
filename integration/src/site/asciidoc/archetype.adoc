@@ -139,7 +139,7 @@ Pass only the ones that differ.
 | `disabledTests`
 | `false`
 | both
-| When `true`, annotates every generated test with JUnit's `@Disabled`, so the suite is generated and compiles but does not run. (`SchemaEntityValidationAuditIT` is annotated on the class rather than the method, so its `ddl-auto=validate` context never loads.) Useful for scaffolding the audits into a project that does not pass them yet — remove the `@Disabled` annotations to enable audits one at a time.
+| When `true`, annotates every generated test with JUnit's `@Disabled`, so the suite is generated and compiles but does not run. (`SchemaEntityValidationAuditIT` is annotated on the class rather than the method, so its Spring context never loads.) Useful for scaffolding the audits into a project that does not pass them yet — remove the `@Disabled` annotations to enable audits one at a time.
 
 | `dataSourceNames`
 | `none`
@@ -258,8 +258,8 @@ The generated tests compile against your existing Spring Boot test context. Run 
 * Generated classes are pure Java with no Lombok. Dependencies are JUnit Jupiter, Spring Boot test, and this
   integration artifact only.
 * `@Order` annotations use JUnit's `org.junit.jupiter.api.Order`, not Spring's.
-* `SchemaEntityValidationAuditIT` sets `@TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=validate")`;
-  reaching the test body means Hibernate's startup validation passed.
+* `SchemaEntityValidationAuditIT` validates Hibernate's entity mappings against the live schema and reports every
+  mismatch in one run; it runs under the default `ddl-auto=none`, not Hibernate's fail-fast `ddl-auto=validate`.
 * Each catalog IT uses constants (e.g., `EXCLUDED_TABLES`, `EXCLUDED_CONSTRAINTS`) to name known/intentional
   exclusions. `ForeignKeyIndexAuditIT` and `PrimaryKeyPresenceAuditIT` call the no-exclusion overload directly
   to show that pattern as well.
