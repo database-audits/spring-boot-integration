@@ -46,6 +46,7 @@ mvn archetype:generate -DinteractiveMode=false \
   -DdatabaseAuditsVersion=VERSION \
   -DspringBootVersion=4.1.0 \
   -DpostgresImage=postgres:16 \
+  -DdisabledTests=false \
   -DoutputDirectory=/path/to/output
 ----
 
@@ -81,6 +82,8 @@ mvn archetype:generate -DinteractiveMode=false \
   -DparentClass=com.example.MySpringTestBase \
   -DdatabaseAuditsVersion=VERSION \
   -DspringBootVersion=4.1.0 \
+  -DpostgresImage=postgres:16 \
+  -DdisabledTests=false \
   -DoutputDirectory=/tmp/audit-scratch \
   -DprojectDirectory=.
 ----
