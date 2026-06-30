@@ -20,7 +20,7 @@ mvn archetype:generate -DinteractiveMode=false \
   -DartifactId=demo-audit-tests \
   -Dpackage=com.example.demo \
   -DschemaPropertyName=database.datasource.schema-name \
-  -DoutputDirectory=/tmp/audit-scratch \
+  -DoutputDirectory=target/audit-scratch \
   -DprojectDirectory=.
 ----
 

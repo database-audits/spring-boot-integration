@@ -13,12 +13,14 @@ if (!targetDirProp) {
     targetDirProp = System.getProperty('projectDirectory')
 }
 
-// A relative projectDirectory resolves against the shell's working directory. Prefer the PWD
-// environment variable: the shell exports it and, unlike user.dir, it cannot be mutated by a
-// System.setProperty call inside the running JVM. Fall back to user.dir when PWD is absent (e.g. on
-// Windows). Tests inject _pwd through the Groovy Binding to stand in for PWD.
-def pwdOverride = binding.hasVariable('_pwd') ? (String) binding.getVariable('_pwd') : null
-def workingDir = pwdOverride ?: System.getenv('PWD') ?: System.getProperty('user.dir')
+// A relative projectDirectory resolves against the shell's working directory, taken from the PWD
+// environment variable (the shell exports it and, unlike user.dir, it cannot be mutated by a
+// System.setProperty call inside the running JVM; tests inject _pwd through the Groovy Binding to
+// stand in for it). Under Git Bash on Windows, though, PWD is a Unix-style path (e.g. /c/Users/...)
+// that java.io.File resolves to a bogus drive-relative path, so trust PWD only when it names an
+// existing directory on this platform; otherwise fall back to user.dir (the real JVM working dir).
+def pwd = binding.hasVariable('_pwd') ? (String) binding.getVariable('_pwd') : System.getenv('PWD')
+def workingDir = (pwd && new File(pwd).isDirectory()) ? pwd : System.getProperty('user.dir')
 
 def resolveDestRoot = { prop ->
     if (!prop) {

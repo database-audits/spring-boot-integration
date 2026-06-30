@@ -53,7 +53,7 @@ mvn archetype:generate -DinteractiveMode=false \
 
 == Generate tests only (for an existing project)
 
-*Point `-DoutputDirectory` at a pom-less scratch directory* (e.g. `/tmp/audit-scratch`) — the plugin refuses
+*Point `-DoutputDirectory` at a pom-less scratch directory* (e.g. `target/audit-scratch`; use a path valid on your OS — a Unix-style `/tmp` path is mis-resolved on Windows) — the plugin refuses
 to generate into a directory containing a `pom.xml`, and when run from inside a Maven project it tries to add
 the result as a `<module>`. The scratch location avoids both pitfalls; only the post-generate copy step writes
 to your project.
@@ -86,7 +86,7 @@ mvn archetype:generate -DinteractiveMode=false \
   -DpostgresImage=postgres:16 \
   -DdisabledTests=false \
   -DdataSourceNames=none \
-  -DoutputDirectory=/tmp/audit-scratch \
+  -DoutputDirectory=target/audit-scratch \
   -DprojectDirectory=.
 ----
 
