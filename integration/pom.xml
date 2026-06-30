@@ -10,7 +10,7 @@
   </parent>
 
   <artifactId>database-audits-spring-boot-integration</artifactId>
-  <version>1.0.2-SNAPSHOT</version>
+  <version>1.1.0</version>
   <packaging>jar</packaging>
 
   <name>Database Audits Spring Boot Integration</name>
@@ -42,7 +42,7 @@
     <connection>scm:git:https://github.com/database-audits/spring-boot-integration.git</connection>
     <developerConnection>scm:git:https://github.com/database-audits/spring-boot-integration.git</developerConnection>
     <url>https://github.com/database-audits/spring-boot-integration</url>
-    <tag>v1.0.1</tag>
+    <tag>v1.1.0</tag>
   </scm>
 
   <dependencyManagement>
