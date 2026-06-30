@@ -1,6 +1,7 @@
 package io.github.databaseaudits.archetype;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,10 +17,12 @@ import groovy.lang.Binding;
 import groovy.lang.GroovyShell;
 
 /**
- * Verifies the archetype post-generate script behavior for the {@code tests-only} generation mode,
+ * Verifies the archetype post-generate script behavior: the {@code tests-only} generation mode —
  * particularly that {@code projectDirectory} is honored whether it arrives in {@code request.properties}
  * (the archetype integration-test mojo) or only as a JVM system property (the {@code archetype:generate}
- * command line, where {@code projectDirectory} is not a declared archetype property).
+ * command line, where {@code projectDirectory} is not a declared archetype property) — and that the
+ * {@code multi/} token templates expand into a {@code DatabaseAudit<Name>TestConfiguration} per
+ * {@code dataSourceNames} entry, or are removed when no names are given.
  */
 class PostGenerateScriptTest {
 
@@ -170,6 +173,67 @@ class PostGenerateScriptTest {
                 .doesNotExist();
     }
 
+    @Test
+    void testPostGenerate_ProjectModeWithoutDataSourceNames_DeletesMultiTemplates()
+            throws Exception {
+        Path outputDir = tempDir.resolve("output");
+        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
+        setupMultiTemplates(outputDir, "demo", PACKAGE_PATH);
+
+        runPostGenerateScriptInProjectMode(outputDir, "demo", "none");
+
+        assertThat(outputDir.resolve("demo/src/test/java/" + PACKAGE_PATH + "/multi").toFile())
+                .as("The multi/ templates must be deleted when dataSourceNames is 'none'.")
+                .doesNotExist();
+        assertThat(outputDir.resolve("demo/src/test/java/" + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
+                .as("Audit IT files are kept in project mode.")
+                .exists();
+    }
+
+    @Test
+    void testPostGenerate_ProjectModeWithDataSourceNames_GeneratesNamedClassesPerDatasource()
+            throws Exception {
+        Path outputDir = tempDir.resolve("output");
+        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
+        setupMultiTemplates(outputDir, "demo", PACKAGE_PATH);
+
+        runPostGenerateScriptInProjectMode(outputDir, "demo", "Aurora, Reporting");
+
+        Path multi = outputDir.resolve("demo/src/test/java/" + PACKAGE_PATH + "/multi");
+        assertThat(multi.resolve("DatabaseAuditAuroraTestConfiguration.java"))
+                .as("A config class is generated for each datasource name.").exists();
+        assertThat(multi.resolve("DatabaseAuditAuroraIT.java"))
+                .as("An IT is generated for each datasource name.").exists();
+        assertThat(multi.resolve("DatabaseAuditReportingTestConfiguration.java"))
+                .as("A config class is generated for each datasource name (whitespace is trimmed).").exists();
+        assertThat(multi.resolve("DatabaseAuditReportingIT.java"))
+                .as("An IT is generated for each datasource name.").exists();
+        assertThat(multi.resolve("DatabaseAuditDsNameTokenTestConfiguration.java").toFile())
+                .as("The token templates are removed after generation.").doesNotExist();
+        assertThat(Files.readString(multi.resolve("DatabaseAuditAuroraTestConfiguration.java")))
+                .as("Tokens are replaced with the datasource name throughout.")
+                .contains("class DatabaseAuditAuroraTestConfiguration", "auroraDataSource")
+                .doesNotContain("DsNameToken", "dsNameToken");
+        assertThat(Files.readString(multi.resolve("DatabaseAuditAuroraIT.java")))
+                .as("Tokens are replaced in the generated IT body too, not just its filename.")
+                .contains("class DatabaseAuditAuroraIT", "auroraDataSource")
+                .doesNotContain("DsNameToken", "dsNameToken");
+    }
+
+    @Test
+    void testPostGenerate_ProjectModeWithInvalidDataSourceName_FailsWithClearError()
+            throws Exception {
+        Path outputDir = tempDir.resolve("output");
+        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
+        setupMultiTemplates(outputDir, "demo", PACKAGE_PATH);
+
+        assertThatThrownBy(() -> runPostGenerateScriptInProjectMode(outputDir, "demo",
+                "read-replica"))
+                .as("A datasource name that is not a valid Java identifier must fail generation, "
+                        + "not emit an uncompilable class.")
+                .hasMessageContaining("read-replica");
+    }
+
     private void setupGeneratedProject(Path outputDir, String artifactId, String packagePath)
             throws IOException {
         Path projectDir = outputDir.resolve(artifactId);
@@ -243,6 +307,33 @@ class PostGenerateScriptTest {
                 System.setProperty("projectDirectory", previous);
             }
         }
+    }
+
+    private void setupMultiTemplates(Path outputDir, String artifactId, String packagePath)
+            throws IOException {
+        Path multiDir = outputDir.resolve(artifactId).resolve("src/test/java/" + packagePath + "/multi");
+        Files.createDirectories(multiDir);
+        Files.writeString(multiDir.resolve("DatabaseAuditDsNameTokenTestConfiguration.java"),
+                "class DatabaseAuditDsNameTokenTestConfiguration { String ds = \"dsNameTokenDataSource\"; }");
+        Files.writeString(multiDir.resolve("DatabaseAuditDsNameTokenIT.java"),
+                "class DatabaseAuditDsNameTokenIT { String ds = \"dsNameTokenDataSource\"; }");
+    }
+
+    /**
+     * Runs the post-generate script in {@code project} mode, where the only cleanup is the {@code parentClass}
+     * deletion and the {@code dataSourceNames} expansion. A {@code null} {@code dataSourceNames} omits the
+     * property entirely, mirroring no datasource names.
+     */
+    private void runPostGenerateScriptInProjectMode(Path outputDir, String artifactId, String dataSourceNames)
+            throws IOException {
+        Properties props = new Properties();
+        props.setProperty("generateMode", "project");
+        props.setProperty("parentClass", "none");
+        props.setProperty("package", PACKAGE);
+        if (dataSourceNames != null) {
+            props.setProperty("dataSourceNames", dataSourceNames);
+        }
+        evaluateScript(outputDir, artifactId, props, null);
     }
 
     private void evaluateScript(Path outputDir, String artifactId, Properties props, String pwdOverride)

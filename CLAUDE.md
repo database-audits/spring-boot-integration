@@ -52,13 +52,24 @@ Use the bundled Maven wrapper from this directory. JDK 21 is required.
 
 ## Architecture
 
-### The config mirrors core's constructors — keep them in sync
+### `DatabaseAuditSuite` mirrors core's constructors — keep them in sync
 
-Each `@Bean` method in `DatabaseAuditTestConfiguration` calls a core audit's constructor directly. There is no
-component scan and no magic: **when a core audit's constructor signature changes (or an audit is added/removed),
-this class must change in lockstep**, or the wiring fails to compile against core. This is the spring-boot half of
-core's standing directive ("when updating any audit class, also update the spring-boot beans"). Treat a compile
-failure here as a signal to read the changed core constructor.
+`DatabaseAuditSuite` (`src/main/java/.../spring/boot/`) is the single place that calls core's audit and
+collaborator constructors directly: it wires the whole graph for one `(DataSource, EntityManagerFactory)` pair and
+exposes each `*AuditAssertion` plus the `DatabaseAuditAssertions` facade. `DatabaseAuditTestConfiguration` builds
+one suite from the context's primary `DataSource`/`EntityManagerFactory` and registers its assertions as `@Bean`s
+(no component scan). **When a core audit's constructor signature changes (or an audit is added/removed),
+`DatabaseAuditSuite` must change in lockstep** — and a new audit also needs its `*AuditAssertion` and a delegating
+`@Bean` in the config. This is the spring-boot half of core's standing directive ("when updating any audit class,
+also update the spring-boot beans"); a compile failure against core is the intended signal.
+
+To audit **multiple datasources**, a consumer builds one `DatabaseAuditSuite` per datasource from its
+`@Qualifier`'d beans in a `@TestConfiguration` named `DatabaseAudit<Name>TestConfiguration` (mirroring the default
+config with the datasource name inserted). The archetype generates one such config plus a `@Disabled`
+`DatabaseAudit<Name>IT` per name under `multi/` when `-DdataSourceNames=Aurora,Reporting`: the `multi/` holds
+`DsNameToken` token templates that `archetype-post-generate.groovy` expands once per name (`dataSourceNames` is a
+declared property, default `none`). The default config's capturer and facade beans are `@Primary` so its by-type
+injections survive the extra datasources' beans.
 
 ### Platform detection and the PostgreSQL-only plan audits
 

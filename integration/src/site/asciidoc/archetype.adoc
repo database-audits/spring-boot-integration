@@ -47,6 +47,7 @@ mvn archetype:generate -DinteractiveMode=false \
   -DspringBootVersion=4.1.0 \
   -DpostgresImage=postgres:16 \
   -DdisabledTests=false \
+  -DdataSourceNames=none \
   -DoutputDirectory=/path/to/output
 ----
 
@@ -84,6 +85,7 @@ mvn archetype:generate -DinteractiveMode=false \
   -DspringBootVersion=4.1.0 \
   -DpostgresImage=postgres:16 \
   -DdisabledTests=false \
+  -DdataSourceNames=none \
   -DoutputDirectory=/tmp/audit-scratch \
   -DprojectDirectory=.
 ----
@@ -138,6 +140,11 @@ Pass only the ones that differ.
 | `false`
 | both
 | When `true`, annotates every generated test with JUnit's `@Disabled`, so the suite is generated and compiles but does not run. (`SchemaEntityValidationAuditIT` is annotated on the class rather than the method, so its `ddl-auto=validate` context never loads.) Useful for scaffolding the audits into a project that does not pass them yet — remove the `@Disabled` annotations to enable audits one at a time.
+
+| `dataSourceNames`
+| `none`
+| both
+| Comma-separated datasource names (e.g. `Aurora,Reporting`). For each name, generates a `DatabaseAudit<Name>TestConfiguration` — which wires `DatabaseAuditSuite` at that datasource via `@Qualifier`, mirroring the default `DatabaseAuditTestConfiguration` with the name inserted — plus a `@Disabled` `DatabaseAudit<Name>IT`, under `multi/`. Each is inert until you fill in the qualifier bean names and remove `@Disabled`. Default `none` generates the single-datasource suite only. See the link:usage.html#_multiple_datasources[Multiple datasources] guide.
 
 | `projectDirectory`
 | (empty)
@@ -256,6 +263,10 @@ The generated tests compile against your existing Spring Boot test context. Run 
 * Each catalog IT uses constants (e.g., `EXCLUDED_TABLES`, `EXCLUDED_CONSTRAINTS`) to name known/intentional
   exclusions. `ForeignKeyIndexAuditIT` and `PrimaryKeyPresenceAuditIT` call the no-exclusion overload directly
   to show that pattern as well.
+* With `-DdataSourceNames=Aurora,Reporting`, a `multi/` package is also generated with a
+  `DatabaseAudit<Name>TestConfiguration` plus a `@Disabled` `DatabaseAudit<Name>IT` for each name, showing how to
+  audit additional datasources via `DatabaseAuditSuite`; see the
+  link:usage.html#_multiple_datasources[Multiple datasources] guide.
 
 == Using SNAPSHOT versions
 

@@ -61,3 +61,39 @@ def destRoot = (generateMode == 'project') ? outputDir : resolveDestRoot(targetD
 if (parentClass != 'none') {
     new File(destRoot, "src/test/java/${packagePath}/AbstractDatabaseAuditIT.java").delete()
 }
+
+// For each name in dataSourceNames (comma-separated; 'none' or empty means none), generate a
+// DatabaseAudit<Name>TestConfiguration plus a DatabaseAudit<Name>IT from the multi/ token templates, then delete
+// the templates; with no names, remove the whole multi/ directory.
+def dataSourceNames = request.properties.getProperty('dataSourceNames', 'none')
+def multiDir = new File(destRoot, "src/test/java/${packagePath}/multi")
+def names = []
+if (dataSourceNames && dataSourceNames != 'none') {
+    names = dataSourceNames.split(',').collect { it.trim() }.findAll { it }
+    names.each { name ->
+        if (!(name ==~ /[A-Za-z_][A-Za-z0-9_]*/)) {
+            throw new IllegalArgumentException("Invalid dataSourceNames entry '" + name +
+                    "': each name must be a valid Java identifier (a letter or underscore followed by " +
+                    "letters, digits, or underscores) so it can form class names like " +
+                    "DatabaseAudit<Name>TestConfiguration.")
+        }
+    }
+}
+if (names) {
+    def configTemplate = new File(multiDir, "DatabaseAuditDsNameTokenTestConfiguration.java")
+    def itTemplate = new File(multiDir, "DatabaseAuditDsNameTokenIT.java")
+    def configBody = configTemplate.getText('UTF-8')
+    def itBody = itTemplate.getText('UTF-8')
+    names.each { name ->
+        def pascal = name.substring(0, 1).toUpperCase() + name.substring(1)
+        def camel = name.substring(0, 1).toLowerCase() + name.substring(1)
+        new File(multiDir, "DatabaseAudit${pascal}TestConfiguration.java")
+                .write(configBody.replace('DsNameToken', pascal).replace('dsNameToken', camel), 'UTF-8')
+        new File(multiDir, "DatabaseAudit${pascal}IT.java")
+                .write(itBody.replace('DsNameToken', pascal).replace('dsNameToken', camel), 'UTF-8')
+    }
+    configTemplate.delete()
+    itTemplate.delete()
+} else {
+    multiDir.deleteDir()
+}
