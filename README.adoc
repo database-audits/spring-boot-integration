@@ -10,14 +10,16 @@ The fastest path is to let the archetype generate the audit test suite directly 
 
 [source,shell]
 ----
-# Run from your project root. Adjust -Dpackage and -DschemaName to match your project.
+# Run from your project root. Adjust -Dpackage and -DschemaPropertyName to match your project.
 mvn archetype:generate -DinteractiveMode=false \
   -DarchetypeGroupId=io.github.database-audits \
   -DarchetypeArtifactId=database-audits-spring-boot-integration-archetype \
   -DarchetypeVersion=VERSION \
   -DgenerateMode=tests-only \
+  -DgroupId=com.example \
+  -DartifactId=demo-audit-tests \
   -Dpackage=com.example.demo \
-  -DschemaName=public \
+  -DschemaPropertyName=database.datasource.schema-name \
   -DoutputDirectory=/tmp/audit-scratch \
   -DprojectDirectory=.
 ----
