@@ -54,4 +54,20 @@
     <url>https://github.com/database-audits/spring-boot-integration</url>
     <tag>v1.0.1</tag>
   </scm>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-release-plugin</artifactId>
+        <configuration>
+          <!-- The archetype IT forks a build of the generated sample, which depends on the freshly
+              built database-audits-spring-boot-integration artifact and resolves it from the local
+              repository. So release:prepare must install (the default clean verify does not); this
+              matches the clean install CI build. -->
+          <preparationGoals>clean install</preparationGoals>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>
