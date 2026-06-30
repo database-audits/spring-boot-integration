@@ -14,13 +14,15 @@ The fastest path is to let the archetype generate the audit test suite directly 
 mvn archetype:generate -DinteractiveMode=false \
   -DarchetypeGroupId=io.github.database-audits \
   -DarchetypeArtifactId=database-audits-spring-boot-integration-archetype \
-  -DarchetypeVersion=1.0.0-SNAPSHOT \
+  -DarchetypeVersion=VERSION \
   -DgenerateMode=tests-only \
   -Dpackage=com.example.demo \
   -DschemaName=public \
   -DoutputDirectory=/tmp/audit-scratch \
   -DprojectDirectory=.
 ----
+
+NOTE: Replace `VERSION` with the latest released version.
 
 This copies the full audit IT suite into your `src/test/` tree — no `pom.xml`, no demo harness,
 ready to run against your existing Spring Boot test context.

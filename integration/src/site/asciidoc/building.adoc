@@ -5,7 +5,7 @@
 * *JDK 21.* The build uses the Temurin 21 toolchain. Verify with `java -version`.
 * *Maven wrapper.* Use `.\mvnw.cmd` (Windows) or `./mvnw` (Linux/macOS) from the repo root — no local Maven
   installation required.
-* *`database-audits-core` in your local repository.* The integration depends on `database-audits-core:1.0.0-SNAPSHOT`.
+* *`database-audits-core` in your local repository.* The integration depends on `database-audits-core:VERSION`.
   If working against unreleased core changes, build and install core first:
 +
 [source,powershell]
