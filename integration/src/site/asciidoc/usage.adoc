@@ -268,3 +268,65 @@ void assertWhereClauseIndexClean() {
 ----
 
 See link:exclusions.html[Exclusions] for the full exclusion API reference.
+
+== Multiple datasources
+
+`DatabaseAuditTestConfiguration` audits one datasource — the context's primary `DataSource` and
+`EntityManagerFactory`. An application with several datasources audits each with its own
+`io.github.databaseaudits.spring.boot.DatabaseAuditSuite`: a plain factory that wires the whole audit graph for a
+given `(DataSource, EntityManagerFactory)` pair and exposes the same `DatabaseAuditAssertions` facade.
+
+Keep importing `DatabaseAuditTestConfiguration` for the primary (`@Primary`) datasource, and add one
+`@TestConfiguration` per additional datasource that builds a suite from its `@Qualifier`'d beans. Name each after
+the datasource, mirroring `DatabaseAuditTestConfiguration` with the datasource name inserted — e.g. for an
+`Aurora` datasource, `DatabaseAuditAuroraTestConfiguration`:
+
+[source,java]
+----
+@TestConfiguration(proxyBeanMethods = false)
+public class DatabaseAuditAuroraTestConfiguration {
+
+    @Bean
+    SqlCapturingStatementInspector auroraSqlCapturer() {
+        return new SqlCapturingStatementInspector();
+    }
+
+    @Bean
+    DatabaseAuditAssertions auroraDatabaseAuditAssertions(
+            @Qualifier("auroraDataSource") DataSource dataSource,
+            @Qualifier("auroraEntityManagerFactory") EntityManagerFactory entityManagerFactory,
+            @Qualifier("auroraSqlCapturer") SqlCapturingStatementInspector auroraSqlCapturer) {
+        return new DatabaseAuditSuite(dataSource, entityManagerFactory, auroraSqlCapturer).assertions();
+    }
+}
+----
+
+Inject the named facade and assert as usual:
+
+[source,java]
+----
+@Autowired
+@Qualifier("auroraDatabaseAuditAssertions")
+private DatabaseAuditAssertions auroraAudits;
+
+@Test
+void auroraSchemaIsClean() {
+    auroraAudits.assertCatalogClean("aurora_schema");
+}
+----
+
+The archetype generates one such pair per name — `DatabaseAudit<Name>TestConfiguration` plus a `@Disabled`
+`DatabaseAudit<Name>IT` — when you pass `-DdataSourceNames=Aurora,Reporting`. Fill in the `@Qualifier` bean names
+and schema in each, then remove `@Disabled`.
+
+=== What each family needs per datasource
+
+* *Catalog and JPA audits* work as soon as you supply the qualified `DataSource` and `EntityManagerFactory`. For
+  the JPA audit to mean anything, that `EntityManagerFactory` must itself be built with
+  `hibernate.hbm2ddl.auto=validate` — the global `spring.jpa.hibernate.ddl-auto` property only reaches Spring
+  Boot's auto-configured (primary) factory, not a manually-configured one.
+* *Runtime audits* (PostgreSQL-only) additionally need that datasource's statements routed into this suite's
+  capturer (e.g. `auroraSqlCapturer`): register it as that `EntityManagerFactory`'s Hibernate `StatementInspector`
+  where you build the factory (Spring Boot's `HibernatePropertiesCustomizer` only customizes the primary one),
+  and connect that datasource with `preferQueryMode=simple` (see <<postgresql-jdbc-requirement>>). Without that,
+  call only `assertCatalogClean` and `assertJpaClean` on that datasource's suite.

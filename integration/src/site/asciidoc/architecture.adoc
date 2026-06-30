@@ -10,9 +10,13 @@ This page covers only the Spring-specific concerns of the integration module.
 
 `database-audits-core` carries no dependency-injection annotations by design, so it can be used in any context.
 `database-audits-spring-boot-integration` provides the one piece core deliberately omits: Spring wiring.
-The entire production surface is a single class, `DatabaseAuditTestConfiguration`, a
-`@TestConfiguration(proxyBeanMethods = false)` that registers every core audit and its collaborators as
-explicit `@Bean` methods with constructor injection.
+The production surface is `DatabaseAuditTestConfiguration`, a `@TestConfiguration(proxyBeanMethods = false)`,
+together with `DatabaseAuditSuite`. `DatabaseAuditSuite` is a plain factory that wires every core audit and its
+collaborators for one `(DataSource, EntityManagerFactory)` pair and exposes the paired `*AuditAssertion`s and the
+`DatabaseAuditAssertions` facade; `DatabaseAuditTestConfiguration` builds one suite from the context's primary
+`DataSource`/`EntityManagerFactory` and registers its assertions as beans. An application with several
+datasources adds one `@TestConfiguration` per extra datasource that builds another suite from its `@Qualifier`'d
+beans — see the link:usage.html#_multiple_datasources[Multiple datasources] guide.
 
 == The shared-capturer invariant — Spring wiring
 
@@ -35,6 +39,7 @@ capturer that it fills but the audits never read.
 
 == Keeping beans in sync with core
 
-Each `@Bean` method in `DatabaseAuditTestConfiguration` calls a core audit or collaborator constructor
-directly; there is no component scan. When a core constructor signature changes, or an audit is added or
-removed, this class must change in lockstep — a compile failure against core is the intended signal.
+`DatabaseAuditSuite` calls every core audit and collaborator constructor directly; there is no component scan.
+When a core constructor signature changes, or an audit is added or removed, `DatabaseAuditSuite` (and, for a new
+audit, its `*AuditAssertion` plus the `DatabaseAuditTestConfiguration` bean that exposes it) must change in
+lockstep — a compile failure against core is the intended signal.

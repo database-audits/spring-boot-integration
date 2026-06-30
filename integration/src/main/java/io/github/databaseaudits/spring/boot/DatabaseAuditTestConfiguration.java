@@ -6,22 +6,9 @@ import org.hibernate.cfg.JdbcSettings;
 import org.springframework.boot.hibernate.autoconfigure.HibernatePropertiesCustomizer;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 
-import io.github.databaseaudits.audit.catalog.ForeignKeyIndexAudit;
-import io.github.databaseaudits.audit.catalog.ForeignKeyNotNullAudit;
-import io.github.databaseaudits.audit.catalog.ForeignKeyTypeMatchAudit;
-import io.github.databaseaudits.audit.catalog.PrimaryKeyPresenceAudit;
-import io.github.databaseaudits.audit.catalog.RedundantIndexAudit;
-import io.github.databaseaudits.audit.jpa.SchemaEntityValidationAudit;
-import io.github.databaseaudits.audit.runtime.UnconditionalMutationAudit;
-import io.github.databaseaudits.audit.runtime.plan.JoinIndexAudit;
-import io.github.databaseaudits.audit.runtime.plan.OrderByIndexAudit;
-import io.github.databaseaudits.audit.runtime.plan.WhereClauseIndexAudit;
 import io.github.databaseaudits.capture.SqlCapturingStatementInspector;
-import io.github.databaseaudits.catalog.IndexCatalog;
-import io.github.databaseaudits.jdbc.CatalogQueries;
-import io.github.databaseaudits.plan.QueryPlanExplainer;
-import io.github.databaseaudits.platform.DatabasePlatform;
 import io.github.databaseaudits.spring.boot.assertion.DatabaseAuditAssertions;
 import io.github.databaseaudits.spring.boot.assertion.ForeignKeyIndexAuditAssertion;
 import io.github.databaseaudits.spring.boot.assertion.ForeignKeyNotNullAuditAssertion;
@@ -38,29 +25,30 @@ import jakarta.persistence.EntityManagerFactory;
 /**
  * Wires the database-audit suite for a module's integration-test context. The
  * core module is dependency-injection-framework-neutral (its classes carry no
- * Spring annotations), so this configuration registers every audit, the
- * {@link QueryPlanExplainer}, and the {@link SqlCapturingStatementInspector} as
- * explicit beans, and registers the capturer as Hibernate's
- * {@code StatementInspector} so the runtime audits see every statement the
+ * Spring annotations), so this configuration builds a {@link DatabaseAuditSuite}
+ * from the context's primary {@link DataSource} and {@link EntityManagerFactory}
+ * and registers its {@code *AuditAssertion}s — and the
+ * {@link DatabaseAuditAssertions} facade — as beans. It also registers the
+ * suite's {@link SqlCapturingStatementInspector} as Hibernate's
+ * {@code StatementInspector}, so the runtime audits see every statement the
  * repositories run.
  *
  * <p>
  * A single {@code @Import(DatabaseAuditTestConfiguration.class)} on your
  * test-infrastructure base class is enough — no separate component-scan setup
  * required. (Assumes a JPA + Liquibase + DataSource context, which the DB
- * integration tests already boot.)
+ * integration tests already boot.) The platform is auto-detected from the
+ * {@link DataSource}; the PostgreSQL-only requirements of the plan-based audits
+ * (including the {@code preferQueryMode=simple} connection property) are
+ * described on {@link DatabaseAuditSuite}.
  *
  * <p>
- * The {@link DatabasePlatform} is auto-detected from the {@link DataSource}
- * metadata, so the audits run the catalog SQL matching the database under test.
- * The plan-based audits ({@link WhereClauseIndexAudit},
- * {@link OrderByIndexAudit}, {@link JoinIndexAudit}) are PostgreSQL-only and
- * fail fast on other platforms. For them the test {@link DataSource} must also
- * connect with {@code preferQueryMode=simple} (a PostgreSQL JDBC connection
- * property, e.g. appended to the JDBC URL): generic-plan EXPLAIN of a statement
- * containing {@code $n} placeholders only works over the simple query protocol
- * — see {@link QueryPlanExplainer}. Without it every parameterized statement is
- * skipped, and the plan audits then fail their vacuous-run guard.
+ * In an application with multiple datasources, this configuration audits the
+ * {@code @Primary} {@link DataSource}/{@link EntityManagerFactory}. To audit
+ * another datasource, add one {@code @TestConfiguration} per extra datasource
+ * that builds a {@link DatabaseAuditSuite} from its {@code @Qualifier}'d beans
+ * and exposes {@link DatabaseAuditSuite#assertions()} as a named bean — see the
+ * integration usage docs.
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class DatabaseAuditTestConfiguration {
@@ -71,7 +59,15 @@ public class DatabaseAuditTestConfiguration {
     public DatabaseAuditTestConfiguration() {
     }
 
+    /**
+     * The SQL capturer the runtime audits read. Marked {@code @Primary} so this
+     * configuration's by-type injections of it still resolve when an application
+     * adds a second capturer for another datasource's suite.
+     *
+     * @return the shared SQL capturer.
+     */
     @Bean
+    @Primary
     SqlCapturingStatementInspector sqlCapturingStatementInspector() {
         return new SqlCapturingStatementInspector();
     }
@@ -85,174 +81,108 @@ public class DatabaseAuditTestConfiguration {
                 sqlCapturer);
     }
 
-    @Bean
-    DatabasePlatform databasePlatform(final DataSource dataSource) {
-        return DatabasePlatform.fromDataSource(dataSource);
-    }
-
-    @Bean
-    CatalogQueries jdbcSupport(final DataSource dataSource) {
-        return new CatalogQueries(dataSource);
-    }
-
-    @Bean
-    IndexCatalog indexCatalog(final CatalogQueries jdbcSupport,
-            final DatabasePlatform platform) {
-        return new IndexCatalog(jdbcSupport, platform);
-    }
-
     /**
-     * The explainer behind the plan-based audits. On PostgreSQL the injected
-     * {@link DataSource} must connect with {@code preferQueryMode=simple} — see
-     * the {@link QueryPlanExplainer} class contract.
+     * The audit suite for the context's primary datasource. On PostgreSQL the
+     * injected {@link DataSource} must connect with {@code preferQueryMode=simple}
+     * — see {@link DatabaseAuditSuite}. Marked {@code @Primary} so this
+     * configuration's by-type injections of the suite still resolve when an
+     * application registers another {@link DatabaseAuditSuite} for a second
+     * datasource.
+     *
+     * @param dataSource
+     *                                the primary datasource to audit.
+     * @param entityManagerFactory
+     *                                the primary entity-manager factory the JPA
+     *                                audit confirms.
+     * @param sqlCapturer
+     *                                the shared SQL capturer the runtime audits
+     *                                read.
+     * @return the wired audit suite.
      */
     @Bean
-    QueryPlanExplainer queryPlanExplainer(final DataSource dataSource,
-            final DatabasePlatform platform) {
-        return new QueryPlanExplainer(dataSource, platform);
-    }
-
-    @Bean
-    WhereClauseIndexAudit whereClauseIndexAudit(
-            final QueryPlanExplainer queryPlanExplainer,
+    @Primary
+    DatabaseAuditSuite databaseAuditSuite(final DataSource dataSource,
+            final EntityManagerFactory entityManagerFactory,
             final SqlCapturingStatementInspector sqlCapturer) {
-        return new WhereClauseIndexAudit(queryPlanExplainer, sqlCapturer);
-    }
-
-    @Bean
-    OrderByIndexAudit orderByIndexAudit(
-            final QueryPlanExplainer queryPlanExplainer,
-            final SqlCapturingStatementInspector sqlCapturer) {
-        return new OrderByIndexAudit(queryPlanExplainer, sqlCapturer);
-    }
-
-    @Bean
-    JoinIndexAudit joinIndexAudit(final QueryPlanExplainer queryPlanExplainer,
-            final SqlCapturingStatementInspector sqlCapturer) {
-        return new JoinIndexAudit(queryPlanExplainer, sqlCapturer);
-    }
-
-    @Bean
-    UnconditionalMutationAudit unconditionalMutationAudit(
-            final SqlCapturingStatementInspector sqlCapturer) {
-        return new UnconditionalMutationAudit(sqlCapturer);
-    }
-
-    @Bean
-    PrimaryKeyPresenceAudit primaryKeyPresenceAudit(
-            final CatalogQueries jdbcSupport, final DatabasePlatform platform) {
-        return new PrimaryKeyPresenceAudit(jdbcSupport, platform);
-    }
-
-    @Bean
-    ForeignKeyIndexAudit foreignKeyIndexAudit(final CatalogQueries jdbcSupport,
-            final IndexCatalog indexCatalog, final DatabasePlatform platform) {
-        return new ForeignKeyIndexAudit(jdbcSupport, indexCatalog, platform);
-    }
-
-    @Bean
-    ForeignKeyNotNullAudit foreignKeyNotNullAudit(
-            final CatalogQueries jdbcSupport, final DatabasePlatform platform) {
-        return new ForeignKeyNotNullAudit(jdbcSupport, platform);
-    }
-
-    @Bean
-    ForeignKeyTypeMatchAudit foreignKeyTypeMatchAudit(
-            final CatalogQueries jdbcSupport, final DatabasePlatform platform) {
-        return new ForeignKeyTypeMatchAudit(jdbcSupport, platform);
-    }
-
-    @Bean
-    RedundantIndexAudit redundantIndexAudit(final IndexCatalog indexCatalog) {
-        return new RedundantIndexAudit(indexCatalog);
-    }
-
-    @Bean
-    SchemaEntityValidationAudit schemaEntityValidationAudit(
-            final EntityManagerFactory entityManagerFactory) {
-        return new SchemaEntityValidationAudit(entityManagerFactory);
+        return new DatabaseAuditSuite(dataSource, entityManagerFactory,
+                sqlCapturer);
     }
 
     @Bean
     ForeignKeyIndexAuditAssertion foreignKeyIndexAuditAssertion(
-            final ForeignKeyIndexAudit foreignKeyIndexAudit) {
-        return new ForeignKeyIndexAuditAssertion(foreignKeyIndexAudit);
+            final DatabaseAuditSuite suite) {
+        return suite.foreignKeyIndexAuditAssertion();
     }
 
     @Bean
     ForeignKeyNotNullAuditAssertion foreignKeyNotNullAuditAssertion(
-            final ForeignKeyNotNullAudit foreignKeyNotNullAudit) {
-        return new ForeignKeyNotNullAuditAssertion(foreignKeyNotNullAudit);
+            final DatabaseAuditSuite suite) {
+        return suite.foreignKeyNotNullAuditAssertion();
     }
 
     @Bean
     ForeignKeyTypeMatchAuditAssertion foreignKeyTypeMatchAuditAssertion(
-            final ForeignKeyTypeMatchAudit foreignKeyTypeMatchAudit) {
-        return new ForeignKeyTypeMatchAuditAssertion(foreignKeyTypeMatchAudit);
+            final DatabaseAuditSuite suite) {
+        return suite.foreignKeyTypeMatchAuditAssertion();
     }
 
     @Bean
     PrimaryKeyPresenceAuditAssertion primaryKeyPresenceAuditAssertion(
-            final PrimaryKeyPresenceAudit primaryKeyPresenceAudit) {
-        return new PrimaryKeyPresenceAuditAssertion(primaryKeyPresenceAudit);
+            final DatabaseAuditSuite suite) {
+        return suite.primaryKeyPresenceAuditAssertion();
     }
 
     @Bean
     RedundantIndexAuditAssertion redundantIndexAuditAssertion(
-            final RedundantIndexAudit redundantIndexAudit) {
-        return new RedundantIndexAuditAssertion(redundantIndexAudit);
+            final DatabaseAuditSuite suite) {
+        return suite.redundantIndexAuditAssertion();
     }
 
     @Bean
     SchemaEntityValidationAuditAssertion schemaEntityValidationAuditAssertion(
-            final SchemaEntityValidationAudit schemaEntityValidationAudit) {
-        return new SchemaEntityValidationAuditAssertion(
-                schemaEntityValidationAudit);
+            final DatabaseAuditSuite suite) {
+        return suite.schemaEntityValidationAuditAssertion();
     }
 
     @Bean
     JoinIndexAuditAssertion joinIndexAuditAssertion(
-            final JoinIndexAudit joinIndexAudit) {
-        return new JoinIndexAuditAssertion(joinIndexAudit);
+            final DatabaseAuditSuite suite) {
+        return suite.joinIndexAuditAssertion();
     }
 
     @Bean
     OrderByIndexAuditAssertion orderByIndexAuditAssertion(
-            final OrderByIndexAudit orderByIndexAudit) {
-        return new OrderByIndexAuditAssertion(orderByIndexAudit);
+            final DatabaseAuditSuite suite) {
+        return suite.orderByIndexAuditAssertion();
     }
 
     @Bean
     WhereClauseIndexAuditAssertion whereClauseIndexAuditAssertion(
-            final WhereClauseIndexAudit whereClauseIndexAudit) {
-        return new WhereClauseIndexAuditAssertion(whereClauseIndexAudit);
+            final DatabaseAuditSuite suite) {
+        return suite.whereClauseIndexAuditAssertion();
     }
 
     @Bean
     UnconditionalMutationAuditAssertion unconditionalMutationAuditAssertion(
-            final UnconditionalMutationAudit unconditionalMutationAudit) {
-        return new UnconditionalMutationAuditAssertion(
-                unconditionalMutationAudit);
+            final DatabaseAuditSuite suite) {
+        return suite.unconditionalMutationAuditAssertion();
     }
 
+    /**
+     * The facade that runs whole audit families in one call, for the primary
+     * datasource. Marked {@code @Primary} so an unqualified
+     * {@link DatabaseAuditAssertions} injection still resolves to the primary
+     * datasource's audits when an application registers another datasource's
+     * facade.
+     *
+     * @param suite
+     *                  the primary datasource's audit suite.
+     * @return the primary datasource's assertions facade.
+     */
     @Bean
+    @Primary
     DatabaseAuditAssertions databaseAuditAssertions(
-            final ForeignKeyIndexAuditAssertion foreignKeyIndexAuditAssertion,
-            final ForeignKeyNotNullAuditAssertion foreignKeyNotNullAuditAssertion,
-            final ForeignKeyTypeMatchAuditAssertion foreignKeyTypeMatchAuditAssertion,
-            final PrimaryKeyPresenceAuditAssertion primaryKeyPresenceAuditAssertion,
-            final RedundantIndexAuditAssertion redundantIndexAuditAssertion,
-            final SchemaEntityValidationAuditAssertion schemaEntityValidationAuditAssertion,
-            final JoinIndexAuditAssertion joinIndexAuditAssertion,
-            final OrderByIndexAuditAssertion orderByIndexAuditAssertion,
-            final WhereClauseIndexAuditAssertion whereClauseIndexAuditAssertion,
-            final UnconditionalMutationAuditAssertion unconditionalMutationAuditAssertion) {
-        return new DatabaseAuditAssertions(foreignKeyIndexAuditAssertion,
-                foreignKeyNotNullAuditAssertion,
-                foreignKeyTypeMatchAuditAssertion,
-                primaryKeyPresenceAuditAssertion, redundantIndexAuditAssertion,
-                schemaEntityValidationAuditAssertion, joinIndexAuditAssertion,
-                orderByIndexAuditAssertion, whereClauseIndexAuditAssertion,
-                unconditionalMutationAuditAssertion);
+            final DatabaseAuditSuite suite) {
+        return suite.assertions();
     }
 }

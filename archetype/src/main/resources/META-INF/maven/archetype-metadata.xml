@@ -43,6 +43,13 @@
     <requiredProperty key="disabledTests">
       <defaultValue>false</defaultValue>
     </requiredProperty>
+    <!-- Comma-separated datasource names (e.g. "Aurora,Reporting"). For each name, the post-generate script
+         expands the multi/ token templates into a DatabaseAudit<Name>TestConfiguration plus a
+         DatabaseAudit<Name>IT. Default 'none' (a non-empty sentinel, like parentClass, so the integration-test
+         mojo does not treat it as missing) generates the single-datasource suite only. -->
+    <requiredProperty key="dataSourceNames">
+      <defaultValue>none</defaultValue>
+    </requiredProperty>
   </requiredProperties>
 
   <fileSets>

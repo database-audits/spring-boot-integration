@@ -16,16 +16,13 @@ import org.hibernate.cfg.JdbcSettings;
 import org.junit.jupiter.api.Test;
 
 import io.github.databaseaudits.capture.SqlCapturingStatementInspector;
-import io.github.databaseaudits.catalog.IndexCatalog;
-import io.github.databaseaudits.jdbc.CatalogQueries;
-import io.github.databaseaudits.platform.DatabasePlatform;
 import jakarta.persistence.EntityManagerFactory;
 
 /**
  * Integration of the Spring wiring with the core capturer and Hibernate's
- * settings contract — the configuration, the inspector, and the
- * {@code HibernatePropertiesCustomizer} collaborating. No Spring context is
- * booted.
+ * settings contract — the configuration, the {@link DatabaseAuditSuite}, the
+ * inspector, and the {@code HibernatePropertiesCustomizer} collaborating. No
+ * Spring context is booted.
  */
 class DatabaseAuditTestConfigurationIT {
     private final DatabaseAuditTestConfiguration configuration =
@@ -50,69 +47,65 @@ class DatabaseAuditTestConfigurationIT {
                 .isSameAs(inspector);
     }
 
+    /**
+     * Every assertion bean method delegates to the suite, which constructs the
+     * whole graph — proving the wiring compiles and runs against core's audit
+     * constructors and that the platform is detected from the
+     * {@link DataSource}.
+     */
     @Test
-    void testDatabasePlatform_DetectsFromTheDataSourceMetadata()
+    void testEveryAssertionBeanMethod_DelegatesToTheConstructedSuite()
             throws SQLException {
+        final DataSource dataSource = postgresDataSource();
+        final SqlCapturingStatementInspector capturer =
+                configuration.sqlCapturingStatementInspector();
+        final DatabaseAuditSuite suite = configuration.databaseAuditSuite(
+                dataSource, mock(EntityManagerFactory.class), capturer);
+
+        assertThat(suite)
+                .as("The suite bean constructs against core's audit constructors.")
+                .isNotNull();
+        assertThat(configuration.foreignKeyIndexAuditAssertion(suite))
+                .as("The foreignKeyIndexAuditAssertion bean constructs.")
+                .isNotNull();
+        assertThat(configuration.foreignKeyNotNullAuditAssertion(suite))
+                .as("The foreignKeyNotNullAuditAssertion bean constructs.")
+                .isNotNull();
+        assertThat(configuration.foreignKeyTypeMatchAuditAssertion(suite))
+                .as("The foreignKeyTypeMatchAuditAssertion bean constructs.")
+                .isNotNull();
+        assertThat(configuration.primaryKeyPresenceAuditAssertion(suite))
+                .as("The primaryKeyPresenceAuditAssertion bean constructs.")
+                .isNotNull();
+        assertThat(configuration.redundantIndexAuditAssertion(suite))
+                .as("The redundantIndexAuditAssertion bean constructs.")
+                .isNotNull();
+        assertThat(configuration.schemaEntityValidationAuditAssertion(suite))
+                .as("The schemaEntityValidationAuditAssertion bean constructs.")
+                .isNotNull();
+        assertThat(configuration.joinIndexAuditAssertion(suite))
+                .as("The joinIndexAuditAssertion bean constructs.").isNotNull();
+        assertThat(configuration.orderByIndexAuditAssertion(suite))
+                .as("The orderByIndexAuditAssertion bean constructs.")
+                .isNotNull();
+        assertThat(configuration.whereClauseIndexAuditAssertion(suite))
+                .as("The whereClauseIndexAuditAssertion bean constructs.")
+                .isNotNull();
+        assertThat(configuration.unconditionalMutationAuditAssertion(suite))
+                .as("The unconditionalMutationAuditAssertion bean constructs.")
+                .isNotNull();
+        assertThat(configuration.databaseAuditAssertions(suite))
+                .as("The databaseAuditAssertions facade bean constructs.")
+                .isNotNull();
+    }
+
+    private static DataSource postgresDataSource() throws SQLException {
         final DatabaseMetaData metaData = mock(DatabaseMetaData.class);
         when(metaData.getDatabaseProductName()).thenReturn("PostgreSQL");
         final Connection connection = mock(Connection.class);
         when(connection.getMetaData()).thenReturn(metaData);
         final DataSource dataSource = mock(DataSource.class);
         when(dataSource.getConnection()).thenReturn(connection);
-
-        assertThat(configuration.databasePlatform(dataSource))
-                .as("The platform is detected from the DataSource metadata.")
-                .isEqualTo(DatabasePlatform.POSTGRESQL);
-    }
-
-    /**
-     * Every audit bean method constructs — proves the wiring compiles against
-     * core's constructors.
-     */
-    @Test
-    void testEveryBeanMethodConstructsItsBean() {
-        final DataSource dataSource = mock(DataSource.class);
-        final CatalogQueries jdbcSupport = mock(CatalogQueries.class);
-        final IndexCatalog indexCatalog = mock(IndexCatalog.class);
-        final SqlCapturingStatementInspector capturer =
-                configuration.sqlCapturingStatementInspector();
-        final DatabasePlatform platform = DatabasePlatform.POSTGRESQL;
-        final var queryPlanExplainer =
-                configuration.queryPlanExplainer(dataSource, platform);
-
-        assertThat(configuration.jdbcSupport(dataSource))
-                .as("The jdbcSupport bean constructs.").isNotNull();
-        assertThat(configuration.indexCatalog(jdbcSupport, platform))
-                .as("The indexCatalog bean constructs.").isNotNull();
-        assertThat(queryPlanExplainer)
-                .as("The queryPlanExplainer bean constructs.").isNotNull();
-        assertThat(configuration.whereClauseIndexAudit(queryPlanExplainer,
-                capturer)).as("The whereClauseIndexAudit bean constructs.")
-                .isNotNull();
-        assertThat(
-                configuration.orderByIndexAudit(queryPlanExplainer, capturer))
-                .as("The orderByIndexAudit bean constructs.").isNotNull();
-        assertThat(configuration.joinIndexAudit(queryPlanExplainer, capturer))
-                .as("The joinIndexAudit bean constructs.").isNotNull();
-        assertThat(configuration.unconditionalMutationAudit(capturer))
-                .as("The unconditionalMutationAudit bean constructs.")
-                .isNotNull();
-        assertThat(configuration.primaryKeyPresenceAudit(jdbcSupport, platform))
-                .as("The primaryKeyPresenceAudit bean constructs.").isNotNull();
-        assertThat(configuration.foreignKeyIndexAudit(jdbcSupport, indexCatalog,
-                platform)).as("The foreignKeyIndexAudit bean constructs.")
-                .isNotNull();
-        assertThat(configuration.foreignKeyNotNullAudit(jdbcSupport, platform))
-                .as("The foreignKeyNotNullAudit bean constructs.").isNotNull();
-        assertThat(
-                configuration.foreignKeyTypeMatchAudit(jdbcSupport, platform))
-                .as("The foreignKeyTypeMatchAudit bean constructs.")
-                .isNotNull();
-        assertThat(configuration.redundantIndexAudit(indexCatalog))
-                .as("The redundantIndexAudit bean constructs.").isNotNull();
-        assertThat(configuration
-                .schemaEntityValidationAudit(mock(EntityManagerFactory.class)))
-                .as("The schemaEntityValidationAudit bean constructs.")
-                .isNotNull();
+        return dataSource;
     }
 }
