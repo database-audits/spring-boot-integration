@@ -47,7 +47,7 @@ mvn archetype:generate -DinteractiveMode=false \
   -DspringBootVersion=4.1.0 \
   -DpostgresImage=postgres:16 \
   -DdisabledTests=false \
-  -DdataSourceNames=none \
+  -DdataSourceName=none \
   -DoutputDirectory=/path/to/output
 ----
 
@@ -85,7 +85,7 @@ mvn archetype:generate -DinteractiveMode=false \
   -DspringBootVersion=4.1.0 \
   -DpostgresImage=postgres:16 \
   -DdisabledTests=false \
-  -DdataSourceNames=none \
+  -DdataSourceName=none \
   -DoutputDirectory=target/audit-scratch \
   -DprojectDirectory=.
 ----
@@ -119,7 +119,7 @@ Pass only the ones that differ.
 | `parentClass`
 | `none`
 | both
-| Fully qualified class name of your existing Spring Boot test base class, e.g. `com.example.MySpringTestBase`. When set, each audit IT extends it directly and `AbstractDatabaseAuditIT` is not generated. Your class must carry `@SpringBootTest` and `@Import(DatabaseAuditTestConfiguration.class)`. Leave as `none` to generate `AbstractDatabaseAuditIT` as the shared base.
+| Fully qualified class name of your existing Spring Boot test base class, e.g. `com.example.MySpringTestBase`. When set, each audit IT extends it directly and `AbstractDatabaseAuditIT` is not generated. Your class must carry `@SpringBootTest` and — for the single-datasource suite — `@Import(DatabaseAuditTestConfiguration.class)`; with `-DdataSourceName` set, omit that import (each audit IT imports the generated `DatabaseAudit<Name>TestConfiguration` instead). Leave as `none` to generate `AbstractDatabaseAuditIT` as the shared base.
 
 | `databaseAuditsVersion`
 | `VERSION`
@@ -141,10 +141,20 @@ Pass only the ones that differ.
 | both
 | When `true`, annotates every generated test with JUnit's `@Disabled`, so the suite is generated and compiles but does not run. (`SchemaEntityValidationAuditIT` is annotated on the class rather than the method, so its Spring context never loads.) Useful for scaffolding the audits into a project that does not pass them yet — remove the `@Disabled` annotations to enable audits one at a time.
 
-| `dataSourceNames`
+| `dataSourceName`
 | `none`
 | both
-| Comma-separated datasource names (e.g. `Aurora,Reporting`). For each name, generates a `DatabaseAudit<Name>TestConfiguration` — which wires `DatabaseAuditSuite` at that datasource via `@Qualifier`, mirroring the default `DatabaseAuditTestConfiguration` with the name inserted — plus a `@Disabled` `DatabaseAudit<Name>IT`, under `multi/`. Each is inert until you fill in the qualifier bean names and remove `@Disabled`. Default `none` generates the single-datasource suite only. See the link:usage.html#_multiple_datasources[Multiple datasources] guide.
+| The datasource to audit when your application configures several peer datasources with no `@Primary`. When set (e.g. `Aurora`), the generated audit ITs target that one datasource, resolved *by name*: the archetype generates a `DatabaseAudit<Name>TestConfiguration` — a `@Qualifier`-based mirror of the stock config that builds a `DatabaseAuditSuite` from your named beans and exposes every `*AuditAssertion` bean — and each audit IT `@Import`s it (so no datasource need be `@Primary`, and `AbstractDatabaseAuditIT` does not import the stock config). Requires `dataSourceBeanName` and `entityManagerFactoryBeanName`. To audit several datasources, generate once per datasource into its own package. The value names the config class (PascalCase) and its capturer bean (camelCase), so it must be a valid Java identifier. Default `none` generates the single-datasource suite. See the link:usage.html#_multiple_datasources[Multiple datasources] guide.
+
+| `dataSourceBeanName`
+| `none`
+| both
+| The `DataSource` bean name the generated per-datasource config resolves via `@Qualifier`, e.g. `auroraDataSource`. Required when `dataSourceName` is set; ignored otherwise.
+
+| `entityManagerFactoryBeanName`
+| `none`
+| both
+| The `EntityManagerFactory` bean name the generated per-datasource config resolves via `@Qualifier`, e.g. `auroraEntityManagerFactory`. Required when `dataSourceName` is set; ignored otherwise.
 
 | `projectDirectory`
 | (empty)
@@ -263,9 +273,10 @@ The generated tests compile against your existing Spring Boot test context. Run 
 * Each catalog IT uses constants (e.g., `EXCLUDED_TABLES`, `EXCLUDED_CONSTRAINTS`) to name known/intentional
   exclusions. `ForeignKeyIndexAuditIT` and `PrimaryKeyPresenceAuditIT` call the no-exclusion overload directly
   to show that pattern as well.
-* With `-DdataSourceNames=Aurora,Reporting`, a `multi/` package is also generated with a
-  `DatabaseAudit<Name>TestConfiguration` plus a `@Disabled` `DatabaseAudit<Name>IT` for each name, showing how to
-  audit additional datasources via `DatabaseAuditSuite`; see the
+* With `-DdataSourceName=Aurora -DdataSourceBeanName=… -DentityManagerFactoryBeanName=…`, the generated ITs
+  target that one datasource: a `DatabaseAuditAuroraTestConfiguration` — a `@Qualifier`-based mirror of the stock
+  config that resolves your named beans — is generated and each audit IT `@Import`s it, so no datasource need be
+  `@Primary`. Generate once per datasource to audit several; see the
   link:usage.html#_multiple_datasources[Multiple datasources] guide.
 
 == Using SNAPSHOT versions

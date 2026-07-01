@@ -1,10 +1,27 @@
 package ${package};
 
+#set($targeted = $dataSourceName && $dataSourceName != '' && $dataSourceName != 'none')
 import org.springframework.boot.test.context.SpringBootTest;
+#if(!$targeted)
 import org.springframework.context.annotation.Import;
 
 import io.github.databaseaudits.spring.boot.DatabaseAuditTestConfiguration;
+#end
 
+#if($targeted)
+/**
+ * Base class for the audit integration tests. It boots a Spring Boot test context; each audit IT
+ * {@code @Import}s the generated per-datasource {@code DatabaseAudit<Name>TestConfiguration}, which resolves that
+ * datasource's beans by name and registers every audit bean. It deliberately does not import
+ * {@code DatabaseAuditTestConfiguration}: that configuration audits the single primary
+ * {@code DataSource}/{@code EntityManagerFactory} by type, which is ambiguous when an application has several peer
+ * datasources — so it backs off there and the per-datasource config takes over.
+ *
+ * <p>
+ * It carries no database or container wiring of its own, so it works unchanged against any application. Point it at
+ * your own application and datasource to audit your real schema.
+ */
+#else
 /**
  * Base class for the audit integration tests. It boots a Spring Boot test context and imports
  * {@link DatabaseAuditTestConfiguration}, which registers every audit bean and wires the shared SQL capturer.
@@ -14,7 +31,10 @@ import io.github.databaseaudits.spring.boot.DatabaseAuditTestConfiguration;
  * {@code @SpringBootApplication} and {@code DataSource} (a Testcontainers PostgreSQL) supply the database for the
  * audit ITs that extend it. Point it at your own application and {@code DataSource} to audit your real schema.
  */
+#end
 @SpringBootTest
+#if(!$targeted)
 @Import(DatabaseAuditTestConfiguration.class)
+#end
 public abstract class AbstractDatabaseAuditIT {
 }

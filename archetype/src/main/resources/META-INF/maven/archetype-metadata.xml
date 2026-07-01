@@ -43,11 +43,24 @@
     <requiredProperty key="disabledTests">
       <defaultValue>false</defaultValue>
     </requiredProperty>
-    <!-- Comma-separated datasource names (e.g. "Aurora,Reporting"). For each name, the post-generate script
-         expands the multi/ token templates into a DatabaseAudit<Name>TestConfiguration plus a
-         DatabaseAudit<Name>IT. Default 'none' (a non-empty sentinel, like parentClass, so the integration-test
-         mojo does not treat it as missing) generates the single-datasource suite only. -->
-    <requiredProperty key="dataSourceNames">
+    <!-- The datasource to audit when the application configures several peer datasources with no @Primary.
+         When set (not 'none'), the post-generate script expands the token config template into a
+         DatabaseAudit<Name>TestConfiguration that resolves this datasource's beans by @Qualifier, and each audit IT
+         @Imports it. The value labels the generated config class (Pascal-cased) and its SQL capturer bean
+         (camel-cased), so it must be a valid Java identifier. Default 'none' (a non-empty sentinel, like
+         parentClass, so the integration-test mojo does not treat it as missing) generates the single-datasource
+         suite that imports the stock DatabaseAuditTestConfiguration. -->
+    <requiredProperty key="dataSourceName">
+      <defaultValue>none</defaultValue>
+    </requiredProperty>
+    <!-- The DataSource bean name the generated per-datasource config resolves by @Qualifier. Required (not 'none')
+         when dataSourceName is set; ignored otherwise. -->
+    <requiredProperty key="dataSourceBeanName">
+      <defaultValue>none</defaultValue>
+    </requiredProperty>
+    <!-- The EntityManagerFactory bean name the generated per-datasource config resolves by @Qualifier. Required
+         (not 'none') when dataSourceName is set; ignored otherwise. -->
+    <requiredProperty key="entityManagerFactoryBeanName">
       <defaultValue>none</defaultValue>
     </requiredProperty>
   </requiredProperties>

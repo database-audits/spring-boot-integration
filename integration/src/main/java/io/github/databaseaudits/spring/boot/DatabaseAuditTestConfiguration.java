@@ -6,6 +6,7 @@ import org.hibernate.cfg.JdbcSettings;
 import org.springframework.boot.hibernate.autoconfigure.HibernatePropertiesCustomizer;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Primary;
 
 import io.github.databaseaudits.capture.SqlCapturingStatementInspector;
@@ -43,14 +44,19 @@ import jakarta.persistence.EntityManagerFactory;
  * described on {@link DatabaseAuditSuite}.
  *
  * <p>
- * In an application with multiple datasources, this configuration audits the
- * {@code @Primary} {@link DataSource}/{@link EntityManagerFactory}. To audit
- * another datasource, add one {@code @TestConfiguration} per extra datasource
- * that builds a {@link DatabaseAuditSuite} from its {@code @Qualifier}'d beans
- * and exposes {@link DatabaseAuditSuite#assertions()} as a named bean — see the
- * integration usage docs.
+ * This configuration is gated on {@link SingleDataSourceCondition}. In the common
+ * single-datasource application it stays active; in an application with several
+ * datasources it audits the {@code @Primary}
+ * {@link DataSource}/{@link EntityManagerFactory} when one is marked, and
+ * otherwise <strong>backs off entirely</strong> — its by-type injection would be
+ * ambiguous, so importing it becomes a no-op rather than a context failure. To
+ * audit a datasource in that peer-datasource case, add one
+ * {@code @TestConfiguration} per datasource that builds a
+ * {@link DatabaseAuditSuite} from its {@code @Qualifier}'d beans and exposes the
+ * {@code *AuditAssertion}s as beans — see the integration usage docs.
  */
 @TestConfiguration(proxyBeanMethods = false)
+@Conditional(SingleDataSourceCondition.class)
 public class DatabaseAuditTestConfiguration {
     /**
      * Creates the configuration; the audit beans are registered by the

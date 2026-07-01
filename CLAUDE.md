@@ -63,13 +63,24 @@ one suite from the context's primary `DataSource`/`EntityManagerFactory` and reg
 `@Bean` in the config. This is the spring-boot half of core's standing directive ("when updating any audit class,
 also update the spring-boot beans"); a compile failure against core is the intended signal.
 
-To audit **multiple datasources**, a consumer builds one `DatabaseAuditSuite` per datasource from its
-`@Qualifier`'d beans in a `@TestConfiguration` named `DatabaseAudit<Name>TestConfiguration` (mirroring the default
-config with the datasource name inserted). The archetype generates one such config plus a `@Disabled`
-`DatabaseAudit<Name>IT` per name under `multi/` when `-DdataSourceNames=Aurora,Reporting`: the `multi/` holds
-`DsNameToken` token templates that `archetype-post-generate.groovy` expands once per name (`dataSourceNames` is a
-declared property, default `none`). The default config's capturer and facade beans are `@Primary` so its by-type
-injections survive the extra datasources' beans.
+To audit a datasource in an application that configures **several peer datasources** (with no `@Primary`
+`DataSource`/`EntityManagerFactory`), the archetype generates tests that target **one specified datasource**,
+resolved **by name** rather than by type. Pass `-DdataSourceName=Aurora -DdataSourceBeanName=auroraDataSource
+-DentityManagerFactoryBeanName=auroraEntityManagerFactory`: `archetype-post-generate.groovy` expands the
+`DsNameToken` config token template into a `DatabaseAuditAuroraTestConfiguration` — a `@Qualifier`-based mirror of
+the stock config (its own capturer, a `DatabaseAuditSuite` built from the two named beans, and every
+`*AuditAssertion` bean) — and each audit IT `@Import`s it. In this **targeted** mode `AbstractDatabaseAuditIT` does
+**not** import the default `DatabaseAuditTestConfiguration`; the ITs self-import the generated config. To audit more
+than one datasource, generate once per datasource into its own package. Each audit IT template branches only on a
+`#set($targeted ...)` flag — the classic single-datasource `*AuditAssertion` injection is unchanged in both modes,
+and targeted mode only adds the `@Import`. Because the generated token config mirrors the stock config's bean list,
+adding/removing a core audit now touches it too — the same lockstep the stock config follows. `dataSourceName`,
+`dataSourceBeanName`, and `entityManagerFactoryBeanName` are declared properties, default `none`.
+
+The stock `DatabaseAuditTestConfiguration` is gated on `SingleDataSourceCondition` (a `REGISTER_BEAN`-phase
+condition): it stays active for a single-or-`@Primary` `DataSource`/`EntityManagerFactory` and **backs off
+entirely** when the context has several peer datasources, so importing it from a consumer's test base class in a
+multi-datasource app is a no-op instead of an `expected single matching bean but found 2` failure.
 
 ### Platform detection and the PostgreSQL-only plan audits
 
