@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Import;
 
 #if($parentClass && $parentClass != '' && $parentClass != 'none')
@@ -35,10 +36,14 @@ public class DatabaseAuditDsNameTokenIT extends AbstractDatabaseAuditIT {
     @Qualifier("dsNameTokenDatabaseAuditAssertions")
     private DatabaseAuditAssertions dsNameTokenAudits;
 
+    // TODO: this injects the primary datasource's schema name property, the only schema property the archetype
+    //       knows. Point @Value at the DsNameToken datasource's own schema property if it differs.
+    @Value("#[[${]]#${schemaPropertyName}#[[}]]#")
+    private String schemaName;
+
     @Test
     void testDsNameTokenSchemaIsClean() {
-        // TODO: replace with the DsNameToken datasource's schema name.
-        dsNameTokenAudits.assertCatalogClean("${schemaName}");
+        dsNameTokenAudits.assertCatalogClean(schemaName);
         dsNameTokenAudits.assertJpaClean();
     }
 }
