@@ -43,12 +43,17 @@ import jakarta.persistence.EntityManagerFactory;
  * described on {@link DatabaseAuditSuite}.
  *
  * <p>
- * In an application with multiple datasources, this configuration audits the
- * {@code @Primary} {@link DataSource}/{@link EntityManagerFactory}. To audit
- * another datasource, add one {@code @TestConfiguration} per extra datasource
- * that builds a {@link DatabaseAuditSuite} from its {@code @Qualifier}'d beans
- * and exposes {@link DatabaseAuditSuite#assertions()} as a named bean — see the
- * integration usage docs.
+ * This is the default, single-datasource entry point: it audits <em>one</em>
+ * datasource, resolving the {@link DataSource}/{@link EntityManagerFactory}
+ * <em>by type</em> — Spring's autowiring selects the single, {@code @Primary}, or
+ * conventionally-named ({@code dataSource}/{@code entityManagerFactory}) candidate.
+ * Several peer datasources it cannot disambiguate make importing this configuration
+ * fail fast with Spring's "expected single matching bean but found 2". To audit a
+ * <em>specific</em> datasource <em>by name</em> instead (typically a non-primary one
+ * among peers), use the archetype-generated {@code DatabaseAudit<Name>TestConfiguration}
+ * — a {@code @Qualifier}-based mirror of this class — rather than this one. That does
+ * not make this class obsolete: it stays the entry point for auditing any single or
+ * {@code @Primary} datasource. See the integration usage docs.
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class DatabaseAuditTestConfiguration {

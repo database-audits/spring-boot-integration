@@ -64,38 +64,60 @@ if (parentClass != 'none') {
     new File(destRoot, "src/test/java/${packagePath}/AbstractDatabaseAuditIT.java").delete()
 }
 
-// For each name in dataSourceNames (comma-separated; 'none' or empty means none), generate a
-// DatabaseAudit<Name>TestConfiguration plus a DatabaseAudit<Name>IT from the multi/ token templates, then delete
-// the templates; with no names, remove the whole multi/ directory.
-def dataSourceNames = request.properties.getProperty('dataSourceNames', 'none')
-def multiDir = new File(destRoot, "src/test/java/${packagePath}/multi")
-def names = []
-if (dataSourceNames && dataSourceNames != 'none') {
-    names = dataSourceNames.split(',').collect { it.trim() }.findAll { it }
-    names.each { name ->
-        if (!(name ==~ /[A-Za-z_][A-Za-z0-9_]*/)) {
-            throw new IllegalArgumentException("Invalid dataSourceNames entry '" + name +
-                    "': each name must be a valid Java identifier (a letter or underscore followed by " +
-                    "letters, digits, or underscores) so it can form class names like " +
-                    "DatabaseAudit<Name>TestConfiguration.")
-        }
+// When dataSourceName is set (not 'none'), the application configures several peer datasources with no @Primary:
+// expand the token config template into a DatabaseAudit<Name>TestConfiguration that resolves this datasource's
+// beans by @Qualifier (each audit IT @Imports it), then delete the token template. With no dataSourceName, just
+// remove the token template — the ITs import the stock DatabaseAuditTestConfiguration instead.
+def dataSourceName = request.properties.getProperty('dataSourceName', 'none')
+def configTemplate = new File(destRoot, "src/test/java/${packagePath}/DatabaseAuditDsNameTokenTestConfiguration.java")
+if (dataSourceName && dataSourceName != 'none') {
+    if (!(dataSourceName ==~ /[A-Za-z_][A-Za-z0-9_]*/)) {
+        throw new IllegalArgumentException("Invalid dataSourceName '" + dataSourceName +
+                "': it must be a valid Java identifier (a letter or underscore followed by letters, digits, or " +
+                "underscores) so it can form the class name DatabaseAudit<Name>TestConfiguration.")
     }
-}
-if (names) {
-    def configTemplate = new File(multiDir, "DatabaseAuditDsNameTokenTestConfiguration.java")
-    def itTemplate = new File(multiDir, "DatabaseAuditDsNameTokenIT.java")
+    def dataSourceBeanName = request.properties.getProperty('dataSourceBeanName', 'none')
+    def entityManagerFactoryBeanName = request.properties.getProperty('entityManagerFactoryBeanName', 'none')
+    if (!dataSourceBeanName || dataSourceBeanName == 'none'
+            || !entityManagerFactoryBeanName || entityManagerFactoryBeanName == 'none') {
+        throw new IllegalArgumentException("dataSourceName '" + dataSourceName +
+                "' requires both dataSourceBeanName and entityManagerFactoryBeanName, naming the DataSource and " +
+                "EntityManagerFactory beans the generated config resolves by @Qualifier.")
+    }
+    def pascal = dataSourceName.substring(0, 1).toUpperCase() + dataSourceName.substring(1)
+    def camel = dataSourceName.substring(0, 1).toLowerCase() + dataSourceName.substring(1)
     def configBody = configTemplate.getText('UTF-8')
-    def itBody = itTemplate.getText('UTF-8')
-    names.each { name ->
-        def pascal = name.substring(0, 1).toUpperCase() + name.substring(1)
-        def camel = name.substring(0, 1).toLowerCase() + name.substring(1)
-        new File(multiDir, "DatabaseAudit${pascal}TestConfiguration.java")
-                .write(configBody.replace('DsNameToken', pascal).replace('dsNameToken', camel), 'UTF-8')
-        new File(multiDir, "DatabaseAudit${pascal}IT.java")
-                .write(itBody.replace('DsNameToken', pascal).replace('dsNameToken', camel), 'UTF-8')
-    }
+    new File(configTemplate.parentFile, "DatabaseAudit${pascal}TestConfiguration.java")
+            .write(configBody.replace('DsNameToken', pascal).replace('dsNameToken', camel), 'UTF-8')
     configTemplate.delete()
-    itTemplate.delete()
 } else {
-    multiDir.deleteDir()
+    configTemplate.delete()
 }
+
+// Remaining manual steps for the consumer, printed to the archetype:generate console output. The audit ITs no
+// longer carry @Import themselves; the config is imported once on the base class (generated or user-specified).
+def schemaProp = request.properties.getProperty('schemaPropertyName', 'database.datasource.schema-name')
+def site = 'https://database-audits.github.io/spring-boot-integration'
+println ''
+println '=================================================================================='
+println ' database-audits: generation complete. Remaining manual steps:'
+println '=================================================================================='
+if (dataSourceName && dataSourceName != 'none') {
+    def pascal = dataSourceName.substring(0, 1).toUpperCase() + dataSourceName.substring(1)
+    def configClass = "DatabaseAudit${pascal}TestConfiguration"
+    if (parentClass && parentClass != 'none') {
+        println " * Add @Import(${configClass}.class) to your base test class ${parentClass}"
+        println "   (or list ${configClass}.class in its @ContextConfiguration(classes = { ... }))."
+    }
+    println " * Add preferQueryMode=simple to the ${dataSourceName} datasource's JDBC URL (plan-based PostgreSQL"
+    println "   runtime audits only)."
+    println " * Guide: ${site}/usage.html#_multiple_datasources"
+} else if (parentClass && parentClass != 'none') {
+    println " * Add @Import(DatabaseAuditTestConfiguration.class) to your base test class ${parentClass}"
+    println "   (or list it in its @ContextConfiguration(classes = { ... }))."
+    println " * Guide: ${site}/usage.html"
+} else {
+    println " * Guide: ${site}/usage.html"
+}
+println " * Ensure ${schemaProp} is set to the schema the catalog audits scan."
+println '=================================================================================='

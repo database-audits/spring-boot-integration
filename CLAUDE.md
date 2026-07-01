@@ -63,13 +63,27 @@ one suite from the context's primary `DataSource`/`EntityManagerFactory` and reg
 `@Bean` in the config. This is the spring-boot half of core's standing directive ("when updating any audit class,
 also update the spring-boot beans"); a compile failure against core is the intended signal.
 
-To audit **multiple datasources**, a consumer builds one `DatabaseAuditSuite` per datasource from its
-`@Qualifier`'d beans in a `@TestConfiguration` named `DatabaseAudit<Name>TestConfiguration` (mirroring the default
-config with the datasource name inserted). The archetype generates one such config plus a `@Disabled`
-`DatabaseAudit<Name>IT` per name under `multi/` when `-DdataSourceNames=Aurora,Reporting`: the `multi/` holds
-`DsNameToken` token templates that `archetype-post-generate.groovy` expands once per name (`dataSourceNames` is a
-declared property, default `none`). The default config's capturer and facade beans are `@Primary` so its by-type
-injections survive the extra datasources' beans.
+To audit a datasource in an application that configures **several peer datasources** (with no `@Primary`
+`DataSource`/`EntityManagerFactory`), the archetype generates tests that target **one specified datasource**,
+resolved **by name** rather than by type. Pass `-DdataSourceName=Reporting -DdataSourceBeanName=reportingDataSource
+-DentityManagerFactoryBeanName=reportingEntityManagerFactory`: `archetype-post-generate.groovy` expands the
+`DsNameToken` config token template into a `DatabaseAuditReportingTestConfiguration` — a `@Qualifier`-based mirror of
+the stock config (its own capturer, a `DatabaseAuditSuite` built from the two named beans, and every
+`*AuditAssertion` bean) — and the generated `AbstractDatabaseAuditIT` `@Import`s it (the audit ITs carry no
+`@Import` of their own; they just extend that base, so a per-test `@Import` can't clash with a consumer base that
+declares its context via `@ContextConfiguration`). In this **targeted** mode `AbstractDatabaseAuditIT` imports the
+per-datasource config instead of the default `DatabaseAuditTestConfiguration`; when a `parentClass` is given
+`AbstractDatabaseAuditIT` is not generated, so `archetype-post-generate.groovy` prints an instruction telling the
+consumer to add that `@Import` to their own base class. To audit more than one datasource, generate once per
+datasource into its own package. `AbstractDatabaseAuditIT` branches on a `#set($targeted ...)` flag for which config
+it imports; each IT's `*AuditAssertion` injection is unchanged in both modes. Because the generated token config mirrors the stock config's bean list,
+adding/removing a core audit now touches it too — the same lockstep the stock config follows. `dataSourceName`,
+`dataSourceBeanName`, and `entityManagerFactoryBeanName` are declared properties, default `none`.
+
+The stock `DatabaseAuditTestConfiguration` resolves the `DataSource`/`EntityManagerFactory` **by type** — Spring
+picks the single, `@Primary`, or conventionally-named (`dataSource`/`entityManagerFactory`) candidate. Several peer
+datasources it can't disambiguate make importing the config fail fast with `expected single matching bean but found
+2`; audit such a datasource by name via the targeted mode above instead.
 
 ### Platform detection and the PostgreSQL-only plan audits
 
@@ -87,6 +101,15 @@ The runtime audits read SQL from a `SqlCapturingStatementInspector`. The **same 
 Hibernate's `StatementInspector` and the instance injected into the audits — that is why the customizer registers
 the *bean object*, not its class name. Registering by class name spawns a second capturer Hibernate fills but the
 audits never read, silently producing empty captures. Preserve this when editing the config.
+
+The stock config wires the capturer onto the auto-configured **primary** `EntityManagerFactory` via a
+`HibernatePropertiesCustomizer`. That customizer reaches only the primary factory, so a **by-name (peer)**
+datasource can't use it: the generated `DatabaseAudit<Name>TestConfiguration` instead registers a
+`SqlCapturerRegisteringPostProcessor` (`…/spring/boot/`), a `BeanPostProcessor` that puts the same capturer instance
+under `JdbcSettings.STATEMENT_INSPECTOR` on the named `LocalContainerEntityManagerFactoryBean` **before Hibernate
+builds it** (the inspector is a build-time setting — it can't be attached to an already-built factory). This wires
+peer-datasource runtime capture with no change to the application's own factory configuration; it is the one bean
+the token config adds beyond the stock config's list.
 
 ### The reusable assertion API — how consumers consume the audits
 

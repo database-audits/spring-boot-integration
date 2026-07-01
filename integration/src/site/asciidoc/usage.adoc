@@ -272,62 +272,153 @@ See link:exclusions.html[Exclusions] for the full exclusion API reference.
 
 == Multiple datasources
 
-`DatabaseAuditTestConfiguration` audits one datasource — the context's primary `DataSource` and
-`EntityManagerFactory`. An application with several datasources audits each with its own
-`io.github.databaseaudits.spring.boot.DatabaseAuditSuite`: a plain factory that wires the whole audit graph for a
-given `(DataSource, EntityManagerFactory)` pair and exposes the same `DatabaseAuditAssertions` facade.
+`DatabaseAuditTestConfiguration` audits one datasource — resolved *by type* from the context's `DataSource` and
+`EntityManagerFactory`. Spring picks the single, `@Primary`, or conventionally-named
+(`dataSource`/`entityManagerFactory`) candidate, so importing the stock config audits that datasource out of the box.
 
-Keep importing `DatabaseAuditTestConfiguration` for the primary (`@Primary`) datasource, and add one
-`@TestConfiguration` per additional datasource that builds a suite from its `@Qualifier`'d beans. Name each after
-the datasource, mirroring `DatabaseAuditTestConfiguration` with the datasource name inserted — e.g. for an
-`Aurora` datasource, `DatabaseAuditAuroraTestConfiguration`:
+With several *peer* datasources that autowiring can't disambiguate (no `@Primary`, custom bean names), by-type
+resolution fails fast with Spring's "expected single matching bean but found 2". To audit such a datasource, wire it
+*by name* instead, one target per generated suite.
+
+In short: `DatabaseAuditTestConfiguration` audits the *primary* datasource *by type*; a per-datasource
+`DatabaseAudit<Name>TestConfiguration` audits a *named* datasource *by name*. The stock class is not obsolete — it
+stays the entry point for any single or `@Primary` datasource; the per-datasource class is what you add for a
+non-primary peer.
+
+Give the datasource a `@TestConfiguration` that resolves its beans by `@Qualifier`, builds a
+`io.github.databaseaudits.spring.boot.DatabaseAuditSuite` — a plain factory that wires the whole audit graph for a
+given `(DataSource, EntityManagerFactory)` pair — and registers every `*AuditAssertion` from it. It mirrors the
+stock config, but by name. Name it after the datasource, e.g. for a `Reporting` datasource:
 
 [source,java]
 ----
 @TestConfiguration(proxyBeanMethods = false)
-public class DatabaseAuditAuroraTestConfiguration {
+public class DatabaseAuditReportingTestConfiguration {
 
     @Bean
-    SqlCapturingStatementInspector auroraSqlCapturer() {
+    SqlCapturingStatementInspector reportingSqlCapturer() {
         return new SqlCapturingStatementInspector();
     }
 
+    @Bean  // sets reportingSqlCapturer as reportingEntityManagerFactory's StatementInspector before it is built
+    static SqlCapturerRegisteringPostProcessor reportingSqlCapturerRegistrar() {
+        return new SqlCapturerRegisteringPostProcessor("reportingEntityManagerFactory", "reportingSqlCapturer");
+    }
+
     @Bean
-    DatabaseAuditAssertions auroraDatabaseAuditAssertions(
-            @Qualifier("auroraDataSource") DataSource dataSource,
-            @Qualifier("auroraEntityManagerFactory") EntityManagerFactory entityManagerFactory,
-            @Qualifier("auroraSqlCapturer") SqlCapturingStatementInspector auroraSqlCapturer) {
-        return new DatabaseAuditSuite(dataSource, entityManagerFactory, auroraSqlCapturer).assertions();
+    DatabaseAuditSuite reportingDatabaseAuditSuite(
+            @Qualifier("reportingDataSource") DataSource dataSource,
+            @Qualifier("reportingEntityManagerFactory") EntityManagerFactory entityManagerFactory,
+            @Qualifier("reportingSqlCapturer") SqlCapturingStatementInspector reportingSqlCapturer) {
+        return new DatabaseAuditSuite(dataSource, entityManagerFactory, reportingSqlCapturer);
+    }
+
+    @Bean
+    ForeignKeyIndexAuditAssertion foreignKeyIndexAuditAssertion(DatabaseAuditSuite suite) {
+        return suite.foreignKeyIndexAuditAssertion();
+    }
+
+    @Bean
+    ForeignKeyNotNullAuditAssertion foreignKeyNotNullAuditAssertion(DatabaseAuditSuite suite) {
+        return suite.foreignKeyNotNullAuditAssertion();
+    }
+
+    @Bean
+    ForeignKeyTypeMatchAuditAssertion foreignKeyTypeMatchAuditAssertion(DatabaseAuditSuite suite) {
+        return suite.foreignKeyTypeMatchAuditAssertion();
+    }
+
+    @Bean
+    PrimaryKeyPresenceAuditAssertion primaryKeyPresenceAuditAssertion(DatabaseAuditSuite suite) {
+        return suite.primaryKeyPresenceAuditAssertion();
+    }
+
+    @Bean
+    RedundantIndexAuditAssertion redundantIndexAuditAssertion(DatabaseAuditSuite suite) {
+        return suite.redundantIndexAuditAssertion();
+    }
+
+    @Bean
+    SchemaEntityValidationAuditAssertion schemaEntityValidationAuditAssertion(DatabaseAuditSuite suite) {
+        return suite.schemaEntityValidationAuditAssertion();
+    }
+
+    @Bean
+    JoinIndexAuditAssertion joinIndexAuditAssertion(DatabaseAuditSuite suite) {
+        return suite.joinIndexAuditAssertion();
+    }
+
+    @Bean
+    OrderByIndexAuditAssertion orderByIndexAuditAssertion(DatabaseAuditSuite suite) {
+        return suite.orderByIndexAuditAssertion();
+    }
+
+    @Bean
+    WhereClauseIndexAuditAssertion whereClauseIndexAuditAssertion(DatabaseAuditSuite suite) {
+        return suite.whereClauseIndexAuditAssertion();
+    }
+
+    @Bean
+    UnconditionalMutationAuditAssertion unconditionalMutationAuditAssertion(DatabaseAuditSuite suite) {
+        return suite.unconditionalMutationAuditAssertion();
+    }
+
+    @Bean
+    DatabaseAuditAssertions databaseAuditAssertions(DatabaseAuditSuite suite) {
+        return suite.assertions();
     }
 }
 ----
 
-Inject the named facade and assert as usual:
+Register a `@Bean` for each `*AuditAssertion` your ITs autowire — plus the `DatabaseAuditAssertions` facade if you
+call the `assert*Clean` family — each delegating to the suite. Miss one and the context fails to start with
+`NoSuchBeanDefinitionException` for that assertion type (e.g. `RedundantIndexAuditAssertion`). The block above lists
+the full set and mirrors the archetype-generated `DatabaseAudit<Name>TestConfiguration`, which registers them all for
+you.
+
+Import that config *once on your test base class* — not on each IT. A per-test `@Import` layered on a base that
+already declares its context via `@ContextConfiguration` breaks Spring's context resolution; putting it on the base
+avoids that. Every audit IT extends the base and injects its assertion bean, exactly like the single-datasource
+suite:
 
 [source,java]
 ----
-@Autowired
-@Qualifier("auroraDatabaseAuditAssertions")
-private DatabaseAuditAssertions auroraAudits;
+@SpringBootTest
+@Import(DatabaseAuditReportingTestConfiguration.class)
+public abstract class AbstractDatabaseAuditIT {
+}
 
-@Test
-void auroraSchemaIsClean() {
-    auroraAudits.assertCatalogClean("aurora_schema");
+class ForeignKeyIndexAuditIT extends AbstractDatabaseAuditIT {
+
+    @Autowired
+    private ForeignKeyIndexAuditAssertion foreignKeyIndexAuditAssertion;
+
+    @Value("${database.datasource.schema-name}")
+    private String schema;
+
+    @Test
+    void everyForeignKeyHasSupportingIndex() {
+        foreignKeyIndexAuditAssertion.assertClean(schema);
+    }
 }
 ----
 
-The archetype generates one such pair per name — `DatabaseAudit<Name>TestConfiguration` plus a `@Disabled`
-`DatabaseAudit<Name>IT` — when you pass `-DdataSourceNames=Aurora,Reporting`. Fill in the `@Qualifier` bean names
-and schema in each, then remove `@Disabled`.
+The archetype generates all of this — the `DatabaseAudit<Name>TestConfiguration` (its capturer, the qualified
+suite, and every `*AuditAssertion` bean) and the audit ITs that `@Import` it — when you pass
+`-DdataSourceName=Reporting -DdataSourceBeanName=reportingDataSource
+-DentityManagerFactoryBeanName=reportingEntityManagerFactory`. To audit several datasources, generate once per
+datasource into its own package; each target audits its own `-DschemaPropertyName`, so datasources with different
+schemas are handled naturally.
 
 === What each family needs per datasource
 
-* *Catalog and JPA audits* work as soon as you supply the qualified `DataSource` and `EntityManagerFactory`. For
-  the JPA audit to mean anything, that `EntityManagerFactory` must itself be built with
-  `hibernate.hbm2ddl.auto=validate` — the global `spring.jpa.hibernate.ddl-auto` property only reaches Spring
-  Boot's auto-configured (primary) factory, not a manually-configured one.
-* *Runtime audits* (PostgreSQL-only) additionally need that datasource's statements routed into this suite's
-  capturer (e.g. `auroraSqlCapturer`): register it as that `EntityManagerFactory`'s Hibernate `StatementInspector`
-  where you build the factory (Spring Boot's `HibernatePropertiesCustomizer` only customizes the primary one),
-  and connect that datasource with `preferQueryMode=simple` (see <<postgresql-jdbc-requirement>>). Without that,
-  call only `assertCatalogClean` and `assertJpaClean` on that datasource's suite.
+* *Catalog and JPA audits* work as soon as you supply the qualified `DataSource` and `EntityManagerFactory` — no
+  special Hibernate settings. The JPA audit walks that factory's entity mappings against the live schema itself
+  under the default `ddl-auto=none`; it does *not* need `hibernate.hbm2ddl.auto=validate` (it deliberately avoids
+  Hibernate's fail-fast `validate`, which aborts on the first mismatch instead of reporting them all in one run).
+* *Runtime audits* (PostgreSQL-only) additionally need that datasource's SQL captured — its `EntityManagerFactory`
+  must use this suite's capturer (`reportingSqlCapturer`) as its Hibernate `StatementInspector`. The config above
+  wires this automatically with a `SqlCapturerRegisteringPostProcessor`, which sets the capturer on the named factory
+  *before Hibernate builds it* — so your own (production) datasource configuration is untouched. Also connect that
+  datasource with `preferQueryMode=simple` (see <<postgresql-jdbc-requirement>>); otherwise run only the catalog and
+  JPA audits against that datasource.

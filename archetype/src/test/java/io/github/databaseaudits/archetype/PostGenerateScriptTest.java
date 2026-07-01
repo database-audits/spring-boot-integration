@@ -20,9 +20,9 @@ import groovy.lang.GroovyShell;
  * Verifies the archetype post-generate script behavior: the {@code tests-only} generation mode —
  * particularly that {@code projectDirectory} is honored whether it arrives in {@code request.properties}
  * (the archetype integration-test mojo) or only as a JVM system property (the {@code archetype:generate}
- * command line, where {@code projectDirectory} is not a declared archetype property) — and that the
- * {@code multi/} token templates expand into a {@code DatabaseAudit<Name>TestConfiguration} per
- * {@code dataSourceNames} entry, or are removed when no names are given.
+ * command line, where {@code projectDirectory} is not a declared archetype property) — and that the token
+ * config template expands into a {@code DatabaseAudit<Name>TestConfiguration} when {@code dataSourceName} is set
+ * (resolving that datasource's beans by name), or is removed when it is not.
  */
 class PostGenerateScriptTest {
 
@@ -174,16 +174,17 @@ class PostGenerateScriptTest {
     }
 
     @Test
-    void testPostGenerate_ProjectModeWithoutDataSourceNames_DeletesMultiTemplates()
+    void testPostGenerate_ProjectModeWithoutDataSourceName_DeletesTokenTemplate()
             throws Exception {
         Path outputDir = tempDir.resolve("output");
         setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
-        setupMultiTemplates(outputDir, "demo", PACKAGE_PATH);
+        setupTokenTemplate(outputDir, "demo", PACKAGE_PATH);
 
-        runPostGenerateScriptInProjectMode(outputDir, "demo", "none");
+        runPostGenerateScriptInProjectMode(outputDir, "demo", null, null, null);
 
-        assertThat(outputDir.resolve("demo/src/test/java/" + PACKAGE_PATH + "/multi").toFile())
-                .as("The multi/ templates must be deleted when dataSourceNames is 'none'.")
+        assertThat(outputDir.resolve(
+                "demo/src/test/java/" + PACKAGE_PATH + "/DatabaseAuditDsNameTokenTestConfiguration.java").toFile())
+                .as("The token config template must be deleted when dataSourceName is 'none'.")
                 .doesNotExist();
         assertThat(outputDir.resolve("demo/src/test/java/" + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
                 .as("Audit IT files are kept in project mode.")
@@ -191,33 +192,53 @@ class PostGenerateScriptTest {
     }
 
     @Test
-    void testPostGenerate_ProjectModeWithDataSourceNames_GeneratesNamedClassesPerDatasource()
+    void testPostGenerate_ProjectModeWithDataSourceName_GeneratesNamedConfig()
             throws Exception {
         Path outputDir = tempDir.resolve("output");
         setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
-        setupMultiTemplates(outputDir, "demo", PACKAGE_PATH);
+        setupTokenTemplate(outputDir, "demo", PACKAGE_PATH);
 
-        runPostGenerateScriptInProjectMode(outputDir, "demo", "Aurora, Reporting");
+        runPostGenerateScriptInProjectMode(outputDir, "demo", "Reporting", "reportingDataSource",
+                "reportingEntityManagerFactory");
 
-        Path multi = outputDir.resolve("demo/src/test/java/" + PACKAGE_PATH + "/multi");
-        assertThat(multi.resolve("DatabaseAuditAuroraTestConfiguration.java"))
-                .as("A config class is generated for each datasource name.").exists();
-        assertThat(multi.resolve("DatabaseAuditAuroraIT.java"))
-                .as("An IT is generated for each datasource name.").exists();
-        assertThat(multi.resolve("DatabaseAuditReportingTestConfiguration.java"))
-                .as("A config class is generated for each datasource name (whitespace is trimmed).").exists();
-        assertThat(multi.resolve("DatabaseAuditReportingIT.java"))
-                .as("An IT is generated for each datasource name.").exists();
-        assertThat(multi.resolve("DatabaseAuditDsNameTokenTestConfiguration.java").toFile())
-                .as("The token templates are removed after generation.").doesNotExist();
-        assertThat(Files.readString(multi.resolve("DatabaseAuditAuroraTestConfiguration.java")))
+        Path pkg = outputDir.resolve("demo/src/test/java/" + PACKAGE_PATH);
+        assertThat(pkg.resolve("DatabaseAuditReportingTestConfiguration.java"))
+                .as("A config class is generated, named for the datasource.").exists();
+        assertThat(pkg.resolve("DatabaseAuditDsNameTokenTestConfiguration.java").toFile())
+                .as("The token template is removed after generation.").doesNotExist();
+        assertThat(Files.readString(pkg.resolve("DatabaseAuditReportingTestConfiguration.java")))
                 .as("Tokens are replaced with the datasource name throughout.")
-                .contains("class DatabaseAuditAuroraTestConfiguration", "auroraDataSource")
+                .contains("class DatabaseAuditReportingTestConfiguration", "reportingSqlCapturer")
                 .doesNotContain("DsNameToken", "dsNameToken");
-        assertThat(Files.readString(multi.resolve("DatabaseAuditAuroraIT.java")))
-                .as("Tokens are replaced in the generated IT body too, not just its filename.")
-                .contains("class DatabaseAuditAuroraIT", "auroraDataSource")
+        assertThat(pkg.resolve("DatabaseAuditMultiTestConfiguration.java").toFile())
+                .as("No aggregator is generated in single-target mode.").doesNotExist();
+    }
+
+    @Test
+    void testPostGenerate_TestsOnlyWithDataSourceName_GeneratesNamedConfigInProjectDir()
+            throws Exception {
+        Path outputDir = tempDir.resolve("output");
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir);
+
+        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
+        setupTokenTemplate(outputDir, "demo", PACKAGE_PATH);
+
+        runPostGenerateScriptInTestsOnlyMode(outputDir, "demo", projectDir.toAbsolutePath().toString(),
+                "Reporting", "reportingDataSource", "reportingEntityManagerFactory");
+
+        Path pkg = projectDir.resolve("src/test/java/" + PACKAGE_PATH);
+        assertThat(pkg.resolve("DatabaseAuditReportingTestConfiguration.java"))
+                .as("The named config is generated in the project directory in tests-only mode.").exists();
+        assertThat(pkg.resolve("DatabaseAuditDsNameTokenTestConfiguration.java").toFile())
+                .as("The token template is removed after tests-only generation.").doesNotExist();
+        assertThat(Files.readString(pkg.resolve("DatabaseAuditReportingTestConfiguration.java")))
+                .as("Tokens are replaced with the datasource name throughout the relocated config.")
+                .contains("class DatabaseAuditReportingTestConfiguration", "reportingSqlCapturer")
                 .doesNotContain("DsNameToken", "dsNameToken");
+        assertThat(outputDir.resolve("demo").toFile())
+                .as("The generated project directory is cleaned up after tests-only generation.")
+                .doesNotExist();
     }
 
     @Test
@@ -225,13 +246,25 @@ class PostGenerateScriptTest {
             throws Exception {
         Path outputDir = tempDir.resolve("output");
         setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
-        setupMultiTemplates(outputDir, "demo", PACKAGE_PATH);
+        setupTokenTemplate(outputDir, "demo", PACKAGE_PATH);
 
         assertThatThrownBy(() -> runPostGenerateScriptInProjectMode(outputDir, "demo",
-                "read-replica"))
+                "read-replica", "x", "y"))
                 .as("A datasource name that is not a valid Java identifier must fail generation, "
                         + "not emit an uncompilable class.")
                 .hasMessageContaining("read-replica");
+    }
+
+    @Test
+    void testPostGenerate_DataSourceNameWithoutBeanNames_FailsWithClearError()
+            throws Exception {
+        Path outputDir = tempDir.resolve("output");
+        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
+        setupTokenTemplate(outputDir, "demo", PACKAGE_PATH);
+
+        assertThatThrownBy(() -> runPostGenerateScriptInProjectMode(outputDir, "demo", "Reporting", null, null))
+                .as("A dataSourceName without the bean-name properties must fail generation.")
+                .hasMessageContaining("dataSourceBeanName");
     }
 
     private void setupGeneratedProject(Path outputDir, String artifactId, String packagePath)
@@ -309,30 +342,53 @@ class PostGenerateScriptTest {
         }
     }
 
-    private void setupMultiTemplates(Path outputDir, String artifactId, String packagePath)
+    private void setupTokenTemplate(Path outputDir, String artifactId, String packagePath)
             throws IOException {
-        Path multiDir = outputDir.resolve(artifactId).resolve("src/test/java/" + packagePath + "/multi");
-        Files.createDirectories(multiDir);
-        Files.writeString(multiDir.resolve("DatabaseAuditDsNameTokenTestConfiguration.java"),
-                "class DatabaseAuditDsNameTokenTestConfiguration { String ds = \"dsNameTokenDataSource\"; }");
-        Files.writeString(multiDir.resolve("DatabaseAuditDsNameTokenIT.java"),
-                "class DatabaseAuditDsNameTokenIT { String ds = \"dsNameTokenDataSource\"; }");
+        Path pkgDir = outputDir.resolve(artifactId).resolve("src/test/java/" + packagePath);
+        Files.createDirectories(pkgDir);
+        Files.writeString(pkgDir.resolve("DatabaseAuditDsNameTokenTestConfiguration.java"),
+                "class DatabaseAuditDsNameTokenTestConfiguration { String cap = \"dsNameTokenSqlCapturer\"; }");
     }
 
     /**
      * Runs the post-generate script in {@code project} mode, where the only cleanup is the {@code parentClass}
-     * deletion and the {@code dataSourceNames} expansion. A {@code null} {@code dataSourceNames} omits the
-     * property entirely, mirroring no datasource names.
+     * deletion and the {@code dataSourceName} expansion. A {@code null} argument omits that property, mirroring an
+     * unset value.
      */
-    private void runPostGenerateScriptInProjectMode(Path outputDir, String artifactId, String dataSourceNames)
-            throws IOException {
+    private void runPostGenerateScriptInProjectMode(Path outputDir, String artifactId, String dataSourceName,
+            String dataSourceBeanName, String entityManagerFactoryBeanName) throws IOException {
         Properties props = new Properties();
         props.setProperty("generateMode", "project");
         props.setProperty("parentClass", "none");
         props.setProperty("package", PACKAGE);
-        if (dataSourceNames != null) {
-            props.setProperty("dataSourceNames", dataSourceNames);
+        if (dataSourceName != null) {
+            props.setProperty("dataSourceName", dataSourceName);
         }
+        if (dataSourceBeanName != null) {
+            props.setProperty("dataSourceBeanName", dataSourceBeanName);
+        }
+        if (entityManagerFactoryBeanName != null) {
+            props.setProperty("entityManagerFactoryBeanName", entityManagerFactoryBeanName);
+        }
+        evaluateScript(outputDir, artifactId, props, null);
+    }
+
+    /**
+     * Runs the post-generate script in {@code tests-only} mode with a {@code dataSourceName}, exercising the
+     * token-config expansion after the {@code src/} tree has been relocated to {@code projectDirectory} — a
+     * different {@code destRoot} path than {@code project} mode.
+     */
+    private void runPostGenerateScriptInTestsOnlyMode(Path outputDir, String artifactId, String projectDirectory,
+            String dataSourceName, String dataSourceBeanName, String entityManagerFactoryBeanName)
+            throws IOException {
+        Properties props = new Properties();
+        props.setProperty("generateMode", "tests-only");
+        props.setProperty("parentClass", "none");
+        props.setProperty("package", PACKAGE);
+        props.setProperty("projectDirectory", projectDirectory);
+        props.setProperty("dataSourceName", dataSourceName);
+        props.setProperty("dataSourceBeanName", dataSourceBeanName);
+        props.setProperty("entityManagerFactoryBeanName", entityManagerFactoryBeanName);
         evaluateScript(outputDir, artifactId, props, null);
     }
 
