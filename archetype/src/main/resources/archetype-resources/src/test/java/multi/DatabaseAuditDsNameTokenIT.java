@@ -1,6 +1,8 @@
 package ${package}.multi;
 
+#if($disabledTests == 'true')
 import org.junit.jupiter.api.Disabled;
+#end
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -21,11 +23,13 @@ import io.github.databaseaudits.spring.boot.assertion.DatabaseAuditAssertions;
  * the {@code @Qualifier} here selects the DsNameToken datasource's facade.
  *
  * <p>
- * Generated {@code @Disabled} because it cannot run until you wire the DsNameToken datasource: fill in the
- * {@code @Qualifier} bean names in {@link DatabaseAuditDsNameTokenTestConfiguration}, set the schema below, then
- * remove {@code @Disabled}.
+ * Before it can run, wire the DsNameToken datasource: fill in the {@code @Qualifier} bean names in
+ * {@link DatabaseAuditDsNameTokenTestConfiguration} and point the {@code @Value} schema below at that datasource's
+ * schema.
  */
-@Disabled("Scaffold: wire the DsNameToken datasource and fill in the @Qualifiers in DatabaseAuditDsNameTokenTestConfiguration, then remove @Disabled.")
+#if($disabledTests == 'true')
+@Disabled("Generated as disabled; remove @Disabled to enable")
+#end
 @Import(DatabaseAuditDsNameTokenTestConfiguration.class)
 #if($parentClass && $parentClass != '' && $parentClass != 'none')
 public class DatabaseAuditDsNameTokenIT extends ${simpleParentClass} {
