@@ -119,7 +119,7 @@ Pass only the ones that differ.
 | `parentClass`
 | `none`
 | both
-| Fully qualified class name of your existing Spring Boot test base class, e.g. `com.example.MySpringTestBase`. When set, each audit IT extends it directly and `AbstractDatabaseAuditIT` is not generated. Your class must carry `@SpringBootTest` and `@Import(DatabaseAuditTestConfiguration.class)`. Leave as `none` to generate `AbstractDatabaseAuditIT` as the shared base.
+| Fully qualified class name of your existing Spring Boot test base class, e.g. `com.example.MySpringTestBase`. When set, each audit IT extends it directly and `AbstractDatabaseAuditIT` is not generated. Your class must carry `@SpringBootTest` and — for the single-datasource suite — `@Import(DatabaseAuditTestConfiguration.class)`; with `-DdataSourceNames` set, omit that import (each audit IT imports the `DatabaseAuditMultiTestConfiguration` aggregator instead). Leave as `none` to generate `AbstractDatabaseAuditIT` as the shared base.
 
 | `databaseAuditsVersion`
 | `VERSION`
@@ -144,7 +144,7 @@ Pass only the ones that differ.
 | `dataSourceNames`
 | `none`
 | both
-| Comma-separated datasource names (e.g. `Aurora,Reporting`). For each name, generates a `DatabaseAudit<Name>TestConfiguration` — which wires `DatabaseAuditSuite` at that datasource via `@Qualifier`, mirroring the default `DatabaseAuditTestConfiguration` with the name inserted — plus a `@Disabled` `DatabaseAudit<Name>IT`, under `multi/`. Each is inert until you fill in the qualifier bean names and remove `@Disabled`. Default `none` generates the single-datasource suite only. See the link:usage.html#_multiple_datasources[Multiple datasources] guide.
+| Comma-separated datasource names (e.g. `Aurora,Reporting`). Switches the generated audit ITs to a by-name, parameterized form. For each name it generates, under `multi/`, a `DatabaseAudit<Name>TestConfiguration` exposing a `DatabaseAuditSuite` bean at that datasource via `@Qualifier`; it also generates a `DatabaseAuditMultiTestConfiguration` aggregator that `@Import`s them all. The catalog/JPA/runtime audit ITs then become `@ParameterizedTest`s over the names, resolving each datasource's suite by bean name — so no datasource need be `@Primary`. Each config is inert until you fill in its qualifier bean names; remove the generated `@Disabled` to enable. Default `none` generates the single-datasource suite. See the link:usage.html#_multiple_datasources[Multiple datasources] guide.
 
 | `projectDirectory`
 | (empty)
@@ -263,9 +263,10 @@ The generated tests compile against your existing Spring Boot test context. Run 
 * Each catalog IT uses constants (e.g., `EXCLUDED_TABLES`, `EXCLUDED_CONSTRAINTS`) to name known/intentional
   exclusions. `ForeignKeyIndexAuditIT` and `PrimaryKeyPresenceAuditIT` call the no-exclusion overload directly
   to show that pattern as well.
-* With `-DdataSourceNames=Aurora,Reporting`, a `multi/` package is also generated with a
-  `DatabaseAudit<Name>TestConfiguration` plus a `@Disabled` `DatabaseAudit<Name>IT` for each name, showing how to
-  audit additional datasources via `DatabaseAuditSuite`; see the
+* With `-DdataSourceNames=Aurora,Reporting`, a `multi/` package is also generated — a
+  `DatabaseAudit<Name>TestConfiguration` per name (each exposing a `DatabaseAuditSuite` bean) plus a
+  `DatabaseAuditMultiTestConfiguration` aggregator — and the catalog/JPA/runtime ITs become `@ParameterizedTest`s
+  that audit every named datasource, resolving each suite by bean name; see the
   link:usage.html#_multiple_datasources[Multiple datasources] guide.
 
 == Using SNAPSHOT versions

@@ -64,9 +64,10 @@ if (parentClass != 'none') {
     new File(destRoot, "src/test/java/${packagePath}/AbstractDatabaseAuditIT.java").delete()
 }
 
-// For each name in dataSourceNames (comma-separated; 'none' or empty means none), generate a
-// DatabaseAudit<Name>TestConfiguration plus a DatabaseAudit<Name>IT from the multi/ token templates, then delete
-// the templates; with no names, remove the whole multi/ directory.
+// For each name in dataSourceNames (comma-separated; 'none' or empty means none), expand the multi/ token
+// template into a DatabaseAudit<Name>TestConfiguration, then generate a DatabaseAuditMultiTestConfiguration that
+// @Imports them all (the aggregator every parameterized audit IT imports); finally delete the token template.
+// With no names, remove the whole multi/ directory.
 def dataSourceNames = request.properties.getProperty('dataSourceNames', 'none')
 def multiDir = new File(destRoot, "src/test/java/${packagePath}/multi")
 def names = []
@@ -82,20 +83,36 @@ if (dataSourceNames && dataSourceNames != 'none') {
     }
 }
 if (names) {
+    def packageName = request.properties.getProperty('package')
     def configTemplate = new File(multiDir, "DatabaseAuditDsNameTokenTestConfiguration.java")
-    def itTemplate = new File(multiDir, "DatabaseAuditDsNameTokenIT.java")
     def configBody = configTemplate.getText('UTF-8')
-    def itBody = itTemplate.getText('UTF-8')
     names.each { name ->
         def pascal = name.substring(0, 1).toUpperCase() + name.substring(1)
         def camel = name.substring(0, 1).toLowerCase() + name.substring(1)
         new File(multiDir, "DatabaseAudit${pascal}TestConfiguration.java")
                 .write(configBody.replace('DsNameToken', pascal).replace('dsNameToken', camel), 'UTF-8')
-        new File(multiDir, "DatabaseAudit${pascal}IT.java")
-                .write(itBody.replace('DsNameToken', pascal).replace('dsNameToken', camel), 'UTF-8')
     }
     configTemplate.delete()
-    itTemplate.delete()
+
+    // The aggregator: one @Import that wires every per-datasource config, imported by each parameterized audit
+    // IT. Built here (not as a Velocity template) because the @Import list depends on the datasource names.
+    def imports = names.collect { name ->
+        "DatabaseAudit" + name.substring(0, 1).toUpperCase() + name.substring(1) + "TestConfiguration.class"
+    }.join(", ")
+    new File(multiDir, "DatabaseAuditMultiTestConfiguration.java").write("""package ${packageName}.multi;
+
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Import;
+
+/**
+ * Aggregates every per-datasource audit configuration so one {@code @Import} wires them all. Each parameterized
+ * audit IT imports this and resolves each datasource's {@code DatabaseAuditSuite} by name.
+ */
+@TestConfiguration(proxyBeanMethods = false)
+@Import({${imports}})
+public class DatabaseAuditMultiTestConfiguration {
+}
+""", 'UTF-8')
 } else {
     multiDir.deleteDir()
 }

@@ -64,12 +64,18 @@ one suite from the context's primary `DataSource`/`EntityManagerFactory` and reg
 also update the spring-boot beans"); a compile failure against core is the intended signal.
 
 To audit **multiple datasources**, a consumer builds one `DatabaseAuditSuite` per datasource from its
-`@Qualifier`'d beans in a `@TestConfiguration` named `DatabaseAudit<Name>TestConfiguration` (mirroring the default
-config with the datasource name inserted). The archetype generates one such config plus a `@Disabled`
-`DatabaseAudit<Name>IT` per name under `multi/` when `-DdataSourceNames=Aurora,Reporting`: the `multi/` holds
-`DsNameToken` token templates that `archetype-post-generate.groovy` expands once per name (`dataSourceNames` is a
-declared property, default `none`). The default config's capturer and facade beans are `@Primary` so its by-type
-injections survive the extra datasources' beans.
+`@Qualifier`'d beans in a `@TestConfiguration` named `DatabaseAudit<Name>TestConfiguration`, each exposing its
+suite as a `<name>DatabaseAuditSuite` bean. Because peer datasources have no `@Primary`
+`DataSource`/`EntityManagerFactory`, the audits resolve each suite **by name** (never by type): in multi mode the
+archetype's audit ITs are `@ParameterizedTest`s over the datasource names that inject
+`Map<String, DatabaseAuditSuite>` and look up `<name>DatabaseAuditSuite`. When `-DdataSourceNames=Aurora,Reporting`,
+`archetype-post-generate.groovy` expands the single `DsNameToken` config token template under `multi/` once per
+name and writes a `DatabaseAuditMultiTestConfiguration` aggregator that `@Import`s them all (each audit IT
+`@Import`s that aggregator); in multi mode `AbstractDatabaseAuditIT` does **not** import the default
+`DatabaseAuditTestConfiguration`, whose by-type injection would be ambiguous. Each audit IT template branches on a
+`#set($multi ...)` flag: single-datasource mode is unchanged (individual `*AuditAssertion` beans from the default
+config, which keeps its `@Primary` beans), multi mode is the parameterized by-name form. `dataSourceNames` is a
+declared property, default `none`.
 
 ### Platform detection and the PostgreSQL-only plan audits
 

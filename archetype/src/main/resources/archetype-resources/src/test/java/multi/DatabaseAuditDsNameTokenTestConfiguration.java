@@ -8,26 +8,27 @@ import org.springframework.context.annotation.Bean;
 
 import io.github.databaseaudits.capture.SqlCapturingStatementInspector;
 import io.github.databaseaudits.spring.boot.DatabaseAuditSuite;
-import io.github.databaseaudits.spring.boot.assertion.DatabaseAuditAssertions;
 import jakarta.persistence.EntityManagerFactory;
 
 /**
- * Audits the DsNameToken datasource. The default {@code DatabaseAuditTestConfiguration} (imported by
- * {@code AbstractDatabaseAuditIT}) audits the application's primary {@code DataSource} and
- * {@code EntityManagerFactory}; this configuration audits the DsNameToken datasource, selected by
- * {@code @Qualifier}.
+ * Wires the audit suite for the DsNameToken datasource, selected by {@code @Qualifier}. It exposes a
+ * {@link DatabaseAuditSuite} bean named {@code dsNameTokenDatabaseAuditSuite}; the parameterized audit ITs look it
+ * up by that name (their {@code @ValueSource} carries the datasource name and appends {@code DatabaseAuditSuite}).
+ * {@link DatabaseAuditMultiTestConfiguration} aggregates this and every other per-datasource config behind one
+ * {@code @Import}.
  *
  * <p>
  * To use it: replace the placeholder {@code @Qualifier} values with your DsNameToken {@code DataSource} and
- * {@code EntityManagerFactory} bean names, {@code @Import} this class from a test, and inject the
- * {@code dsNameTokenDatabaseAuditAssertions} bean (see {@code DatabaseAuditDsNameTokenIT}).
+ * {@code EntityManagerFactory} bean names. No datasource is assumed {@code @Primary} — every datasource, including
+ * this one, is resolved by name, so an application with several peer {@code EntityManagerFactory} beans needs none
+ * of them marked {@code @Primary}.
  *
  * <p>
  * It is a {@code @TestConfiguration}, so it stays inert until imported: the placeholder qualifiers never resolve
  * and the build still compiles. For the runtime (PostgreSQL-only) audits to see SQL, register
  * {@code dsNameTokenSqlCapturer} as that {@code EntityManagerFactory}'s Hibernate {@code StatementInspector} where
- * you build it, and connect that datasource with {@code preferQueryMode=simple}; otherwise call only
- * {@code assertCatalogClean} and {@code assertJpaClean}.
+ * you build it, and connect that datasource with {@code preferQueryMode=simple}; otherwise run only the catalog
+ * and JPA audits against this datasource.
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class DatabaseAuditDsNameTokenTestConfiguration {
@@ -43,8 +44,8 @@ public class DatabaseAuditDsNameTokenTestConfiguration {
     }
 
     /**
-     * Builds the audit assertions for the DsNameToken datasource. Replace the placeholder {@code @Qualifier}
-     * values with your own bean names.
+     * Builds the audit suite for the DsNameToken datasource. Replace the placeholder {@code @Qualifier} values
+     * with your own bean names.
      *
      * @param dataSource
      *                                the DsNameToken datasource to audit.
@@ -52,13 +53,13 @@ public class DatabaseAuditDsNameTokenTestConfiguration {
      *                                the DsNameToken entity-manager factory the JPA audit confirms.
      * @param dsNameTokenSqlCapturer
      *                                the DsNameToken datasource's SQL capturer.
-     * @return the DsNameToken datasource's assertions facade.
+     * @return the DsNameToken datasource's audit suite.
      */
     @Bean
-    DatabaseAuditAssertions dsNameTokenDatabaseAuditAssertions(
+    DatabaseAuditSuite dsNameTokenDatabaseAuditSuite(
             @Qualifier("dsNameTokenDataSource") DataSource dataSource,
             @Qualifier("dsNameTokenEntityManagerFactory") EntityManagerFactory entityManagerFactory,
             @Qualifier("dsNameTokenSqlCapturer") SqlCapturingStatementInspector dsNameTokenSqlCapturer) {
-        return new DatabaseAuditSuite(dataSource, entityManagerFactory, dsNameTokenSqlCapturer).assertions();
+        return new DatabaseAuditSuite(dataSource, entityManagerFactory, dsNameTokenSqlCapturer);
     }
 }

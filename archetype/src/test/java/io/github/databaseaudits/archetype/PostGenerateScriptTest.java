@@ -21,8 +21,9 @@ import groovy.lang.GroovyShell;
  * particularly that {@code projectDirectory} is honored whether it arrives in {@code request.properties}
  * (the archetype integration-test mojo) or only as a JVM system property (the {@code archetype:generate}
  * command line, where {@code projectDirectory} is not a declared archetype property) — and that the
- * {@code multi/} token templates expand into a {@code DatabaseAudit<Name>TestConfiguration} per
- * {@code dataSourceNames} entry, or are removed when no names are given.
+ * {@code multi/} token template expands into a {@code DatabaseAudit<Name>TestConfiguration} per
+ * {@code dataSourceNames} entry (plus a {@code DatabaseAuditMultiTestConfiguration} aggregator), or is removed
+ * when no names are given.
  */
 class PostGenerateScriptTest {
 
@@ -202,22 +203,22 @@ class PostGenerateScriptTest {
         Path multi = outputDir.resolve("demo/src/test/java/" + PACKAGE_PATH + "/multi");
         assertThat(multi.resolve("DatabaseAuditAuroraTestConfiguration.java"))
                 .as("A config class is generated for each datasource name.").exists();
-        assertThat(multi.resolve("DatabaseAuditAuroraIT.java"))
-                .as("An IT is generated for each datasource name.").exists();
         assertThat(multi.resolve("DatabaseAuditReportingTestConfiguration.java"))
                 .as("A config class is generated for each datasource name (whitespace is trimmed).").exists();
-        assertThat(multi.resolve("DatabaseAuditReportingIT.java"))
-                .as("An IT is generated for each datasource name.").exists();
         assertThat(multi.resolve("DatabaseAuditDsNameTokenTestConfiguration.java").toFile())
-                .as("The token templates are removed after generation.").doesNotExist();
+                .as("The token template is removed after generation.").doesNotExist();
         assertThat(Files.readString(multi.resolve("DatabaseAuditAuroraTestConfiguration.java")))
                 .as("Tokens are replaced with the datasource name throughout.")
                 .contains("class DatabaseAuditAuroraTestConfiguration", "auroraDataSource")
                 .doesNotContain("DsNameToken", "dsNameToken");
-        assertThat(Files.readString(multi.resolve("DatabaseAuditAuroraIT.java")))
-                .as("Tokens are replaced in the generated IT body too, not just its filename.")
-                .contains("class DatabaseAuditAuroraIT", "auroraDataSource")
-                .doesNotContain("DsNameToken", "dsNameToken");
+        assertThat(multi.resolve("DatabaseAuditMultiTestConfiguration.java"))
+                .as("An aggregator config is generated to @Import every per-datasource config.").exists();
+        assertThat(Files.readString(multi.resolve("DatabaseAuditMultiTestConfiguration.java")))
+                .as("The aggregator @Imports every per-datasource config by its PascalCase class name.")
+                .contains("class DatabaseAuditMultiTestConfiguration",
+                        "@Import({DatabaseAuditAuroraTestConfiguration.class, "
+                                + "DatabaseAuditReportingTestConfiguration.class})")
+                .doesNotContain("DsNameToken");
     }
 
     @Test
@@ -315,8 +316,6 @@ class PostGenerateScriptTest {
         Files.createDirectories(multiDir);
         Files.writeString(multiDir.resolve("DatabaseAuditDsNameTokenTestConfiguration.java"),
                 "class DatabaseAuditDsNameTokenTestConfiguration { String ds = \"dsNameTokenDataSource\"; }");
-        Files.writeString(multiDir.resolve("DatabaseAuditDsNameTokenIT.java"),
-                "class DatabaseAuditDsNameTokenIT { String ds = \"dsNameTokenDataSource\"; }");
     }
 
     /**
