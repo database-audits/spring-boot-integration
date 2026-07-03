@@ -144,9 +144,14 @@ assertion API; these ITs show how to wire and call it. They mirror core's three 
   `ForeignKeyIndexAuditIT` and `PrimaryKeyPresenceAuditIT` call the no-exclusion overload directly.
 
 The **demo harness** that makes the examples run — `DemoApplication`, `app/*` (entities + repositories +
-`DemoPostgresTestConfig`), `runtime/RepositoryWorkloadIT`, and `src/test/resources/` (`application.properties` + the Liquibase
-XML changelog) — is generated alongside the audit ITs. `DemoPostgresTestConfig` starts one shared PostgreSQL
-container and registers its JDBC URL (carrying `preferQueryMode=simple`) through a `DynamicPropertyRegistrar`.
+`DemoDatabaseTestConfig`), `runtime/RepositoryWorkloadIT`, and `src/test/resources/` (`application.properties` + the Liquibase
+XML changelog) — is generated alongside the audit ITs. `DemoDatabaseTestConfig` starts one shared container for the
+engine chosen by the `databasePlatform` property (`postgresql` default, `mysql`, or `mariadb`) and registers its JDBC
+URL through a `DynamicPropertyRegistrar` (PostgreSQL alone carries `preferQueryMode=simple`). The plan-based runtime
+audits are PostgreSQL-only, so `archetype-post-generate.groovy` deletes the three plan IT templates
+(Join/OrderBy/WhereClause) for any non-PostgreSQL engine; the catalog, JPA, and unconditional-mutation audits run on
+every engine — and `RepositoryWorkloadIT` stays for all of them, because the mutation audit throws on an empty
+capture, so its priming workload must still run.
 
 When you change a core audit's public `audit(...)` signature, update the archetype templates
 (`archetype/src/main/resources/archetype-resources/…`) so the documented usage stays correct.
@@ -171,7 +176,8 @@ mvn archetype:generate -DinteractiveMode=false `
   and `#[[$]]#` produces `$`.
 - **Properties** (`META-INF/maven/archetype-metadata.xml`): `generateMode` (`project`), `schemaName` (`public`),
   `schemaPropertyName` (`database.datasource.schema-name`), `parentClass` (`none`), `databaseAuditsVersion`
-  (`1.0.0-SNAPSHOT`), `springBootVersion` (`4.1.0`), `postgresImage` (`postgres:16`), `disabledTests` (`false`,
+  (`1.0.0-SNAPSHOT`), `springBootVersion` (`4.1.0`), `databasePlatform` (`postgresql`; also `mysql`/`mariadb`),
+  `databaseImage` (`none` ⇒ per-platform default `postgres:16`/`mysql:8`/`mariadb:11`), `disabledTests` (`false`,
   annotates every generated test method with JUnit's `@Disabled` when `true`).
   All have defaults; none are required. The self-test's `archetype.properties` must list every property that the
   templates reference — the IT mojo does not apply defaults the way `archetype:generate` does.

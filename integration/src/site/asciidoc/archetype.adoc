@@ -4,16 +4,16 @@
 Two generation modes are supported, controlled by the `generateMode` property:
 
 * `project` (default) — generates the abstract base IT class, all catalog/JPA/runtime audit ITs,
-  and a Testcontainers PostgreSQL demo harness. Use this to start fresh with a self-contained,
-  runnable example.
+  and a Testcontainers demo harness for the chosen `databasePlatform` (PostgreSQL by default). Use this to
+  start fresh with a self-contained, runnable example.
 * `tests-only` — generates only the audit test classes (no demo app, no entities, no DataSource
   setup, no `RepositoryWorkloadIT`). Use this when you already have a Spring Boot application and
   only want the audit ITs dropped in alongside your existing test infrastructure — your own tests
   prime the SQL capturer before the runtime audit ITs run.
 
 The archetype also doubles as the project's end-to-end test: the build generates and validates multiple
-samples on every `clean install` — a `project` sample that runs its integration tests against
-Testcontainers PostgreSQL, and several `tests-only` samples (covering the default configuration,
+samples on every `clean install` — `project` samples that run their integration tests against
+Testcontainers PostgreSQL and MySQL, and several `tests-only` samples (covering the default configuration,
 the `projectDirectory` option, and the `parentClass` option) that compile the generated sources to
 verify generation correctness.
 
@@ -45,7 +45,8 @@ mvn archetype:generate -DinteractiveMode=false \
   -DparentClass=com.example.MySpringTestBase \
   -DdatabaseAuditsVersion=VERSION \
   -DspringBootVersion=4.1.0 \
-  -DpostgresImage=postgres:16 \
+  -DdatabasePlatform=postgresql \
+  -DdatabaseImage=none \
   -DdisabledTests=false \
   -DdataSourceName=none \
   -DoutputDirectory=/path/to/output
@@ -83,7 +84,8 @@ mvn archetype:generate -DinteractiveMode=false \
   -DparentClass=com.example.MySpringTestBase \
   -DdatabaseAuditsVersion=VERSION \
   -DspringBootVersion=4.1.0 \
-  -DpostgresImage=postgres:16 \
+  -DdatabasePlatform=postgresql \
+  -DdatabaseImage=none \
   -DdisabledTests=false \
   -DdataSourceName=none \
   -DoutputDirectory=target/audit-scratch \
@@ -109,7 +111,7 @@ Pass only the ones that differ.
 | `schemaName`
 | `public`
 | both
-| Database schema the catalog audits scan. Written as the value of `schemaPropertyName` in `application.properties` (project mode) or read from your existing configuration (tests-only mode).
+| Database schema the catalog audits scan. Written as the value of `schemaPropertyName` in `application.properties` (project mode) or read from your existing configuration (tests-only mode). MySQL and MariaDB have no `public` schema, so when left at the default on those engines the demo harness scans its Testcontainers database (`test`) instead; set it explicitly to override.
 
 | `schemaPropertyName`
 | `database.datasource.schema-name`
@@ -131,10 +133,15 @@ Pass only the ones that differ.
 | project only
 | Spring Boot parent version written into the generated `pom.xml`. Not used in `tests-only` mode.
 
-| `postgresImage`
-| `postgres:16`
+| `databasePlatform`
+| `postgresql`
+| both
+| Database engine the audits target: `postgresql` (default), `mysql`, or `mariadb`. In `project` mode it drives the Testcontainers container and the JDBC driver + Testcontainers module in the generated `pom.xml`. In both modes it selects which runtime audit ITs are kept — the plan-based audits (Join/OrderBy/WhereClause index) are PostgreSQL-only, so they are kept for `postgresql` only and removed for the other engines (the post-generate script deletes their ITs); the catalog, JPA, and unconditional-mutation audits are kept on every engine.
+
+| `databaseImage`
+| `none`
 | project only
-| Testcontainers PostgreSQL image used by `DemoPostgresTestConfig`. Override to pin a specific version, e.g. `postgres:17`. Not used in `tests-only` mode.
+| Testcontainers image `DemoDatabaseTestConfig` starts, overriding the per-platform default (`postgres:16`, `mysql:8`, or `mariadb:11`). `none` selects that default; set it to pin a tag, e.g. `postgres:17`. Not used in `tests-only` mode.
 
 | `disabledTests`
 | `false`
@@ -179,7 +186,7 @@ Pass only the ones that differ.
     │   │   ├── ParentRepository.java
     │   │   ├── Child.java                (JPA entity with FK to Parent)
     │   │   ├── ChildRepository.java
-    │   │   └── DemoPostgresTestConfig.java (Testcontainers container + DynamicPropertyRegistrar)
+    │   │   └── DemoDatabaseTestConfig.java (Testcontainers container + DynamicPropertyRegistrar)
     │   ├── catalog/
     │   │   ├── ForeignKeyIndexAuditIT.java
     │   │   ├── ForeignKeyNotNullAuditIT.java
@@ -255,8 +262,8 @@ cd demo
 mvn verify
 ----
 
-`DemoPostgresTestConfig` starts a shared PostgreSQL container for the test run and registers its JDBC URL
-(with `preferQueryMode=simple` appended) via `DynamicPropertyRegistrar`.
+`DemoDatabaseTestConfig` starts a shared container for the chosen `databasePlatform` (PostgreSQL by default) and
+registers its JDBC URL via `DynamicPropertyRegistrar` (on PostgreSQL it appends `preferQueryMode=simple`).
 
 === `generateMode=tests-only`
 
