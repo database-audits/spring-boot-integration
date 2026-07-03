@@ -14,7 +14,7 @@ The production surface is `DatabaseAuditTestConfiguration`, a `@TestConfiguratio
 together with `DatabaseAuditSuite`. `DatabaseAuditSuite` is a plain factory that wires every core audit and its
 collaborators for one `(DataSource, EntityManagerFactory)` pair and exposes the paired `*AuditAssertion`s and the
 `DatabaseAuditAssertions` facade; `DatabaseAuditTestConfiguration` builds one suite from the context's primary
-`DataSource`/`EntityManagerFactory` and registers its assertions as beans. An application with several
+`DataSource`/`EntityManagerFactory` and, through an `AuditAssertionRegistrar`, registers its assertions as beans. An application with several
 datasources adds one `@TestConfiguration` per extra datasource that builds another suite from its `@Qualifier`'d
 beans — see the link:usage.html#_multiple_datasources[Multiple datasources] guide.
 
@@ -41,5 +41,6 @@ capturer that it fills but the audits never read.
 
 `DatabaseAuditSuite` calls every core audit and collaborator constructor directly; there is no component scan.
 When a core constructor signature changes, or an audit is added or removed, `DatabaseAuditSuite` (and, for a new
-audit, its `*AuditAssertion` plus the `DatabaseAuditTestConfiguration` bean that exposes it) must change in
-lockstep — a compile failure against core is the intended signal.
+audit, its `*AuditAssertion`) must change in lockstep — a compile failure against core is the intended signal. The
+`AuditAssertionRegistrar` then exposes the new assertion as a bean automatically, so no per-audit `@Bean` method is
+added to `DatabaseAuditTestConfiguration` — see link:adding-an-audit.html[Adding an Audit].

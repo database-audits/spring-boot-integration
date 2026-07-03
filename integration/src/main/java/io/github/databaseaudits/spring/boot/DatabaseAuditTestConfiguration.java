@@ -10,16 +10,6 @@ import org.springframework.context.annotation.Primary;
 
 import io.github.databaseaudits.capture.SqlCapturingStatementInspector;
 import io.github.databaseaudits.spring.boot.assertion.DatabaseAuditAssertions;
-import io.github.databaseaudits.spring.boot.assertion.ForeignKeyIndexAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.ForeignKeyNotNullAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.ForeignKeyTypeMatchAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.JoinIndexAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.OrderByIndexAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.PrimaryKeyPresenceAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.RedundantIndexAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.SchemaEntityValidationAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.UnconditionalMutationAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.WhereClauseIndexAuditAssertion;
 import jakarta.persistence.EntityManagerFactory;
 
 /**
@@ -27,11 +17,11 @@ import jakarta.persistence.EntityManagerFactory;
  * core module is dependency-injection-framework-neutral (its classes carry no
  * Spring annotations), so this configuration builds a {@link DatabaseAuditSuite}
  * from the context's primary {@link DataSource} and {@link EntityManagerFactory}
- * and registers its {@code *AuditAssertion}s — and the
- * {@link DatabaseAuditAssertions} facade — as beans. It also registers the
- * suite's {@link SqlCapturingStatementInspector} as Hibernate's
- * {@code StatementInspector}, so the runtime audits see every statement the
- * repositories run.
+ * and, through an {@link AuditAssertionRegistrar}, registers its
+ * {@code *AuditAssertion}s — and the {@link DatabaseAuditAssertions} facade — as
+ * beans. It also registers the suite's {@link SqlCapturingStatementInspector} as
+ * Hibernate's {@code StatementInspector}, so the runtime audits see every
+ * statement the repositories run.
  *
  * <p>
  * A single {@code @Import(DatabaseAuditTestConfiguration.class)} on your
@@ -59,7 +49,7 @@ import jakarta.persistence.EntityManagerFactory;
 public class DatabaseAuditTestConfiguration {
     /**
      * Creates the configuration; the audit beans are registered by the
-     * {@code @Bean} methods.
+     * {@code @Bean} methods and the {@link AuditAssertionRegistrar}.
      */
     public DatabaseAuditTestConfiguration() {
     }
@@ -114,81 +104,22 @@ public class DatabaseAuditTestConfiguration {
                 sqlCapturer);
     }
 
-    @Bean
-    ForeignKeyIndexAuditAssertion foreignKeyIndexAuditAssertion(
-            final DatabaseAuditSuite suite) {
-        return suite.foreignKeyIndexAuditAssertion();
-    }
-
-    @Bean
-    ForeignKeyNotNullAuditAssertion foreignKeyNotNullAuditAssertion(
-            final DatabaseAuditSuite suite) {
-        return suite.foreignKeyNotNullAuditAssertion();
-    }
-
-    @Bean
-    ForeignKeyTypeMatchAuditAssertion foreignKeyTypeMatchAuditAssertion(
-            final DatabaseAuditSuite suite) {
-        return suite.foreignKeyTypeMatchAuditAssertion();
-    }
-
-    @Bean
-    PrimaryKeyPresenceAuditAssertion primaryKeyPresenceAuditAssertion(
-            final DatabaseAuditSuite suite) {
-        return suite.primaryKeyPresenceAuditAssertion();
-    }
-
-    @Bean
-    RedundantIndexAuditAssertion redundantIndexAuditAssertion(
-            final DatabaseAuditSuite suite) {
-        return suite.redundantIndexAuditAssertion();
-    }
-
-    @Bean
-    SchemaEntityValidationAuditAssertion schemaEntityValidationAuditAssertion(
-            final DatabaseAuditSuite suite) {
-        return suite.schemaEntityValidationAuditAssertion();
-    }
-
-    @Bean
-    JoinIndexAuditAssertion joinIndexAuditAssertion(
-            final DatabaseAuditSuite suite) {
-        return suite.joinIndexAuditAssertion();
-    }
-
-    @Bean
-    OrderByIndexAuditAssertion orderByIndexAuditAssertion(
-            final DatabaseAuditSuite suite) {
-        return suite.orderByIndexAuditAssertion();
-    }
-
-    @Bean
-    WhereClauseIndexAuditAssertion whereClauseIndexAuditAssertion(
-            final DatabaseAuditSuite suite) {
-        return suite.whereClauseIndexAuditAssertion();
-    }
-
-    @Bean
-    UnconditionalMutationAuditAssertion unconditionalMutationAuditAssertion(
-            final DatabaseAuditSuite suite) {
-        return suite.unconditionalMutationAuditAssertion();
-    }
-
     /**
-     * The facade that runs whole audit families in one call, for the primary
-     * datasource. Marked {@code @Primary} so an unqualified
-     * {@link DatabaseAuditAssertions} injection still resolves to the primary
-     * datasource's audits when an application registers another datasource's
-     * facade.
+     * Registers every {@code *AuditAssertion} the suite wires — and the
+     * {@link DatabaseAuditAssertions} facade — as a bean under its concrete type,
+     * replacing one hand-written {@code @Bean} method per audit. Registered as
+     * {@code primary} with no name prefix, so these beans are the default an
+     * unqualified by-type injection resolves to and keep the conventional bean
+     * names an application may already reference. Consumers {@code @Autowired}
+     * the assertion bean they need and call {@code assertClean(...)}.
      *
      * @param suite
      *                  the primary datasource's audit suite.
-     * @return the primary datasource's assertions facade.
+     * @return the registrar that publishes the suite's assertions as beans.
      */
     @Bean
-    @Primary
-    DatabaseAuditAssertions databaseAuditAssertions(
+    AuditAssertionRegistrar auditAssertionRegistrar(
             final DatabaseAuditSuite suite) {
-        return suite.assertions();
+        return new AuditAssertionRegistrar(suite, "", true);
     }
 }

@@ -1,5 +1,6 @@
 package io.github.databaseaudits.spring.boot;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.sql.DataSource;
@@ -39,36 +40,39 @@ import jakarta.persistence.EntityManagerFactory;
  * mirrors core's audit constructors: it detects the platform, builds the catalog
  * collaborators ({@link CatalogQueries}, {@link IndexCatalog}), the
  * {@link QueryPlanExplainer}, every audit, and the paired {@code *AuditAssertion}
- * surfaced through the {@link DatabaseAuditAssertions} facade.
+ * — collected into {@link #all()} and surfaced through the
+ * {@link DatabaseAuditAssertions} facade. Adding a core audit means adding one
+ * {@code new XxxAuditAssertion(new XxxAudit(...))} line here; nothing else
+ * enumerates the roster.
+ *
+ * <p>
+ * The plan-based runtime audits ({@code JoinIndexAudit}, {@code OrderByIndexAudit},
+ * {@code WhereClauseIndexAudit}) are PostgreSQL-only, so {@link #all()} wires them
+ * only when the detected platform is PostgreSQL. On MySQL/MariaDB they are absent
+ * from the roster, so the facade's {@code assertRuntimeClean}/{@code assertAllClean}
+ * run only the audits the platform supports rather than failing fast on a
+ * PostgreSQL-only audit.
  *
  * <p>
  * {@link DatabaseAuditTestConfiguration} builds one of these from the
- * context's primary {@link DataSource}/{@link EntityManagerFactory} and registers
- * its assertions as beans. An application with several datasources adds one small
+ * context's primary {@link DataSource}/{@link EntityManagerFactory} and, through
+ * an {@link AuditAssertionRegistrar} over {@link #all()}, registers its assertions
+ * as beans. An application with several datasources adds one small
  * {@code @TestConfiguration} per extra datasource that constructs another suite
- * from its qualified beans and exposes {@link #assertions()} as a named bean —
- * see the integration usage docs.
+ * from its qualified beans and registers {@link #all()} the same way — see the
+ * integration usage docs.
  *
  * <p>
  * The caller supplies the {@link SqlCapturingStatementInspector}, because the
  * runtime audits read SQL from the <em>same instance</em> that must also be
  * registered as that {@link EntityManagerFactory}'s Hibernate
  * {@code StatementInspector}. Constructing a suite never opens an
- * {@code EXPLAIN}; the plan-based audits stay PostgreSQL-only and fail fast only
- * when run on another platform.
+ * {@code EXPLAIN}; the plan-based audits are wired only on PostgreSQL (the only
+ * platform that can run them).
  */
 public class DatabaseAuditSuite {
-    private final ForeignKeyIndexAuditAssertion foreignKeyIndexAuditAssertion;
-    private final ForeignKeyNotNullAuditAssertion foreignKeyNotNullAuditAssertion;
-    private final ForeignKeyTypeMatchAuditAssertion foreignKeyTypeMatchAuditAssertion;
-    private final PrimaryKeyPresenceAuditAssertion primaryKeyPresenceAuditAssertion;
-    private final RedundantIndexAuditAssertion redundantIndexAuditAssertion;
-    private final SchemaEntityValidationAuditAssertion schemaEntityValidationAuditAssertion;
-    private final JoinIndexAuditAssertion joinIndexAuditAssertion;
-    private final OrderByIndexAuditAssertion orderByIndexAuditAssertion;
-    private final WhereClauseIndexAuditAssertion whereClauseIndexAuditAssertion;
-    private final UnconditionalMutationAuditAssertion unconditionalMutationAuditAssertion;
     private final List<AuditAssertion> all;
+
     private final DatabaseAuditAssertions assertions;
 
     /**
@@ -96,45 +100,43 @@ public class DatabaseAuditSuite {
         final CatalogQueries catalogQueries = new CatalogQueries(dataSource);
         final IndexCatalog indexCatalog =
                 new IndexCatalog(catalogQueries, platform);
-        final QueryPlanExplainer queryPlanExplainer =
-                new QueryPlanExplainer(dataSource, platform);
 
-        this.foreignKeyIndexAuditAssertion =
+        // The one legitimate enumeration of the roster, in family order
+        // (catalog, JPA, runtime); everything else drives it through all().
+        final List<AuditAssertion> roster = new ArrayList<>(List.of(
                 new ForeignKeyIndexAuditAssertion(new ForeignKeyIndexAudit(
-                        catalogQueries, indexCatalog, platform));
-        this.foreignKeyNotNullAuditAssertion =
+                        catalogQueries, indexCatalog, platform)),
                 new ForeignKeyNotNullAuditAssertion(
-                        new ForeignKeyNotNullAudit(catalogQueries, platform));
-        this.foreignKeyTypeMatchAuditAssertion =
+                        new ForeignKeyNotNullAudit(catalogQueries, platform)),
                 new ForeignKeyTypeMatchAuditAssertion(
-                        new ForeignKeyTypeMatchAudit(catalogQueries, platform));
-        this.primaryKeyPresenceAuditAssertion =
+                        new ForeignKeyTypeMatchAudit(catalogQueries, platform)),
                 new PrimaryKeyPresenceAuditAssertion(
-                        new PrimaryKeyPresenceAudit(catalogQueries, platform));
-        this.redundantIndexAuditAssertion = new RedundantIndexAuditAssertion(
-                new RedundantIndexAudit(indexCatalog));
-        this.schemaEntityValidationAuditAssertion =
+                        new PrimaryKeyPresenceAudit(catalogQueries, platform)),
+                new RedundantIndexAuditAssertion(
+                        new RedundantIndexAudit(indexCatalog)),
                 new SchemaEntityValidationAuditAssertion(
                         SchemaEntityValidationAudit.forEntityManagerFactory(
-                                entityManagerFactory, dataSource));
-        this.joinIndexAuditAssertion = new JoinIndexAuditAssertion(
-                new JoinIndexAudit(queryPlanExplainer, sqlCapturer));
-        this.orderByIndexAuditAssertion = new OrderByIndexAuditAssertion(
-                new OrderByIndexAudit(queryPlanExplainer, sqlCapturer));
-        this.whereClauseIndexAuditAssertion =
-                new WhereClauseIndexAuditAssertion(
-                        new WhereClauseIndexAudit(queryPlanExplainer,
-                                sqlCapturer));
-        this.unconditionalMutationAuditAssertion =
-                new UnconditionalMutationAuditAssertion(
-                        new UnconditionalMutationAudit(sqlCapturer));
-        this.all = List.of(foreignKeyIndexAuditAssertion,
-                foreignKeyNotNullAuditAssertion,
-                foreignKeyTypeMatchAuditAssertion,
-                primaryKeyPresenceAuditAssertion, redundantIndexAuditAssertion,
-                schemaEntityValidationAuditAssertion, joinIndexAuditAssertion,
-                orderByIndexAuditAssertion, whereClauseIndexAuditAssertion,
-                unconditionalMutationAuditAssertion);
+                                entityManagerFactory, dataSource))));
+
+        // The plan-based runtime audits (Join/OrderBy/WhereClause) are
+        // PostgreSQL-only — they fail fast on every other platform — so they are
+        // wired only where the platform can run them; the facade's runtime and
+        // all-family runs then stay clean on MySQL/MariaDB. The capture-based
+        // UnconditionalMutation audit runs on every platform.
+        if (platform == DatabasePlatform.POSTGRESQL) {
+            final QueryPlanExplainer queryPlanExplainer =
+                    new QueryPlanExplainer(dataSource, platform);
+            roster.add(new JoinIndexAuditAssertion(
+                    new JoinIndexAudit(queryPlanExplainer, sqlCapturer)));
+            roster.add(new OrderByIndexAuditAssertion(
+                    new OrderByIndexAudit(queryPlanExplainer, sqlCapturer)));
+            roster.add(new WhereClauseIndexAuditAssertion(
+                    new WhereClauseIndexAudit(queryPlanExplainer, sqlCapturer)));
+        }
+        roster.add(new UnconditionalMutationAuditAssertion(
+                new UnconditionalMutationAudit(sqlCapturer)));
+
+        this.all = List.copyOf(roster);
         this.assertions = new DatabaseAuditAssertions(all);
     }
 
@@ -150,102 +152,14 @@ public class DatabaseAuditSuite {
     /**
      * Returns every audit assertion this suite wires, in family order (catalog,
      * JPA, runtime). Backs the {@link DatabaseAuditAssertions} facade and the
-     * Spring bean registration, and lets a roster guard verify every core audit
-     * has a wired assertion.
+     * {@link AuditAssertionRegistrar} bean registration, and lets a roster guard
+     * verify every core audit has a wired assertion. On PostgreSQL this is the
+     * whole roster; on other platforms it omits the PostgreSQL-only plan-based
+     * runtime assertions.
      *
      * @return the wired audit assertions.
      */
     public List<AuditAssertion> all() {
         return all;
-    }
-
-    /**
-     * Returns the foreign-key index assertion.
-     *
-     * @return the foreign-key index assertion.
-     */
-    public ForeignKeyIndexAuditAssertion foreignKeyIndexAuditAssertion() {
-        return foreignKeyIndexAuditAssertion;
-    }
-
-    /**
-     * Returns the foreign-key not-null assertion.
-     *
-     * @return the foreign-key not-null assertion.
-     */
-    public ForeignKeyNotNullAuditAssertion foreignKeyNotNullAuditAssertion() {
-        return foreignKeyNotNullAuditAssertion;
-    }
-
-    /**
-     * Returns the foreign-key type-match assertion.
-     *
-     * @return the foreign-key type-match assertion.
-     */
-    public ForeignKeyTypeMatchAuditAssertion foreignKeyTypeMatchAuditAssertion() {
-        return foreignKeyTypeMatchAuditAssertion;
-    }
-
-    /**
-     * Returns the primary-key presence assertion.
-     *
-     * @return the primary-key presence assertion.
-     */
-    public PrimaryKeyPresenceAuditAssertion primaryKeyPresenceAuditAssertion() {
-        return primaryKeyPresenceAuditAssertion;
-    }
-
-    /**
-     * Returns the redundant-index assertion.
-     *
-     * @return the redundant-index assertion.
-     */
-    public RedundantIndexAuditAssertion redundantIndexAuditAssertion() {
-        return redundantIndexAuditAssertion;
-    }
-
-    /**
-     * Returns the JPA schema/entity validation assertion.
-     *
-     * @return the JPA schema/entity validation assertion.
-     */
-    public SchemaEntityValidationAuditAssertion schemaEntityValidationAuditAssertion() {
-        return schemaEntityValidationAuditAssertion;
-    }
-
-    /**
-     * Returns the join-index assertion.
-     *
-     * @return the join-index assertion.
-     */
-    public JoinIndexAuditAssertion joinIndexAuditAssertion() {
-        return joinIndexAuditAssertion;
-    }
-
-    /**
-     * Returns the order-by index assertion.
-     *
-     * @return the order-by index assertion.
-     */
-    public OrderByIndexAuditAssertion orderByIndexAuditAssertion() {
-        return orderByIndexAuditAssertion;
-    }
-
-    /**
-     * Returns the where-clause index assertion.
-     *
-     * @return the where-clause index assertion.
-     */
-    public WhereClauseIndexAuditAssertion whereClauseIndexAuditAssertion() {
-        return whereClauseIndexAuditAssertion;
-    }
-
-    /**
-     * Returns the unconditional-mutation assertion.
-     *
-     * @return the unconditional-mutation assertion.
-     */
-    public UnconditionalMutationAuditAssertion unconditionalMutationAuditAssertion() {
-        return unconditionalMutationAuditAssertion;
     }
 }

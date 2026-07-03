@@ -314,67 +314,20 @@ public class DatabaseAuditReportingTestConfiguration {
     }
 
     @Bean
-    ForeignKeyIndexAuditAssertion foreignKeyIndexAuditAssertion(DatabaseAuditSuite suite) {
-        return suite.foreignKeyIndexAuditAssertion();
-    }
-
-    @Bean
-    ForeignKeyNotNullAuditAssertion foreignKeyNotNullAuditAssertion(DatabaseAuditSuite suite) {
-        return suite.foreignKeyNotNullAuditAssertion();
-    }
-
-    @Bean
-    ForeignKeyTypeMatchAuditAssertion foreignKeyTypeMatchAuditAssertion(DatabaseAuditSuite suite) {
-        return suite.foreignKeyTypeMatchAuditAssertion();
-    }
-
-    @Bean
-    PrimaryKeyPresenceAuditAssertion primaryKeyPresenceAuditAssertion(DatabaseAuditSuite suite) {
-        return suite.primaryKeyPresenceAuditAssertion();
-    }
-
-    @Bean
-    RedundantIndexAuditAssertion redundantIndexAuditAssertion(DatabaseAuditSuite suite) {
-        return suite.redundantIndexAuditAssertion();
-    }
-
-    @Bean
-    SchemaEntityValidationAuditAssertion schemaEntityValidationAuditAssertion(DatabaseAuditSuite suite) {
-        return suite.schemaEntityValidationAuditAssertion();
-    }
-
-    @Bean
-    JoinIndexAuditAssertion joinIndexAuditAssertion(DatabaseAuditSuite suite) {
-        return suite.joinIndexAuditAssertion();
-    }
-
-    @Bean
-    OrderByIndexAuditAssertion orderByIndexAuditAssertion(DatabaseAuditSuite suite) {
-        return suite.orderByIndexAuditAssertion();
-    }
-
-    @Bean
-    WhereClauseIndexAuditAssertion whereClauseIndexAuditAssertion(DatabaseAuditSuite suite) {
-        return suite.whereClauseIndexAuditAssertion();
-    }
-
-    @Bean
-    UnconditionalMutationAuditAssertion unconditionalMutationAuditAssertion(DatabaseAuditSuite suite) {
-        return suite.unconditionalMutationAuditAssertion();
-    }
-
-    @Bean
-    DatabaseAuditAssertions databaseAuditAssertions(DatabaseAuditSuite suite) {
-        return suite.assertions();
+    AuditAssertionRegistrar reportingAuditAssertionRegistrar(
+            @Qualifier("reportingDatabaseAuditSuite") DatabaseAuditSuite suite) {
+        return new AuditAssertionRegistrar(suite, "reporting", false);
     }
 }
 ----
 
-Register a `@Bean` for each `*AuditAssertion` your ITs autowire — plus the `DatabaseAuditAssertions` facade if you
-call the `assert*Clean` family — each delegating to the suite. Miss one and the context fails to start with
-`NoSuchBeanDefinitionException` for that assertion type (e.g. `RedundantIndexAuditAssertion`). The block above lists
-the full set and mirrors the archetype-generated `DatabaseAudit<Name>TestConfiguration`, which registers them all for
-you.
+One `AuditAssertionRegistrar` publishes every `*AuditAssertion` the suite wires — and the `DatabaseAuditAssertions`
+facade — as a bean, so this config stays in step with the audit roster automatically; there is no longer a `@Bean`
+method per audit to keep in sync. The `"reporting"` prefix names those beans
+`reportingForeignKeyIndexAuditAssertion`, `reportingDatabaseAuditAssertions`, and so on, so they never collide with
+the primary datasource's audit beans; `false` marks them non-primary, so an unqualified by-type injection still
+resolves to the primary datasource's assertions. Your ITs still `@Autowired` each assertion by type. This is exactly
+what the archetype-generated `DatabaseAudit<Name>TestConfiguration` does.
 
 Import that config *once on your test base class* — not on each IT. A per-test `@Import` layered on a base that
 already declares its context via `@ContextConfiguration` breaks Spring's context resolution; putting it on the base
