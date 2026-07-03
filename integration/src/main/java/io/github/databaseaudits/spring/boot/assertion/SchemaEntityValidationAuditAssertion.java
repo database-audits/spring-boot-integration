@@ -1,5 +1,6 @@
 package io.github.databaseaudits.spring.boot.assertion;
 
+import java.util.Arrays;
 import java.util.Set;
 
 import io.github.databaseaudits.audit.jpa.SchemaEntityValidationAudit;
@@ -46,6 +47,7 @@ public class SchemaEntityValidationAuditAssertion
      *                              case-insensitively.
      */
     public void assertClean(final String... excludedRelations) {
-        failOnViolations(MESSAGE, audit.audit(Set.of(excludedRelations)));
+        failOnViolations(MESSAGE,
+                audit.audit(Set.copyOf(Arrays.asList(excludedRelations))));
     }
 }
