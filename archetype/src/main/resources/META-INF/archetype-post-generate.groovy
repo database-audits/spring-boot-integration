@@ -64,6 +64,20 @@ if (parentClass != 'none') {
     new File(destRoot, "src/test/java/${packagePath}/AbstractDatabaseAuditIT.java").delete()
 }
 
+// The plan-based runtime audits (Join/OrderBy/WhereClause index) are PostgreSQL-only, so remove their ITs for any
+// other engine. The catalog, JPA, and unconditional-mutation audits run on every engine; RepositoryWorkloadIT stays
+// too, because the unconditional-mutation audit throws on an empty capture, so its priming workload must still run.
+def databasePlatform = request.properties.getProperty('databasePlatform', 'postgresql')
+if (databasePlatform != 'postgresql') {
+    [
+        "src/test/java/${packagePath}/runtime/JoinIndexAuditIT.java",
+        "src/test/java/${packagePath}/runtime/OrderByIndexAuditIT.java",
+        "src/test/java/${packagePath}/runtime/WhereClauseIndexAuditIT.java"
+    ].each { path ->
+        new File(destRoot, path).delete()
+    }
+}
+
 // When dataSourceName is set (not 'none'), the application configures several peer datasources with no @Primary:
 // expand the token config template into a DatabaseAudit<Name>TestConfiguration that resolves this datasource's
 // beans by @Qualifier (each audit IT @Imports it), then delete the token template. With no dataSourceName, just
@@ -109,8 +123,10 @@ if (dataSourceName && dataSourceName != 'none') {
         println " * Add @Import(${configClass}.class) to your base test class ${parentClass}"
         println "   (or list ${configClass}.class in its @ContextConfiguration(classes = { ... }))."
     }
-    println " * Add preferQueryMode=simple to the ${dataSourceName} datasource's JDBC URL (plan-based PostgreSQL"
-    println "   runtime audits only)."
+    if (databasePlatform == 'postgresql') {
+        println " * Add preferQueryMode=simple to the ${dataSourceName} datasource's JDBC URL (plan-based PostgreSQL"
+        println "   runtime audits only)."
+    }
     println " * Guide: ${site}/usage.html#_multiple_datasources"
 } else if (parentClass && parentClass != 'none') {
     println " * Add @Import(DatabaseAuditTestConfiguration.class) to your base test class ${parentClass}"

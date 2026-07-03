@@ -31,8 +31,7 @@
                 <constraints nullable="false"/>
             </column>
             <column name="parent_id" type="BIGINT">
-                <constraints nullable="false" foreignKeyName="fk_child_parent"
-                    referencedTableName="parent" referencedColumnNames="id"/>
+                <constraints nullable="false"/>
             </column>
         </createTable>
         <createIndex indexName="idx_child_parent_id" tableName="child">
@@ -41,5 +40,13 @@
         <createIndex indexName="idx_child_name" tableName="child">
             <column name="name"/>
         </createIndex>
+    </changeSet>
+
+    <!-- Add the foreign key after its supporting index exists, so engines that auto-create an index for an
+         otherwise-unindexed foreign key (MySQL, MariaDB) reuse idx_child_parent_id instead of adding a redundant
+         one. PostgreSQL never auto-indexes a foreign key, so the end state is identical on every engine. -->
+    <changeSet id="3-add-child-parent-fk" author="database-audits">
+        <addForeignKeyConstraint baseTableName="child" baseColumnNames="parent_id"
+            constraintName="fk_child_parent" referencedTableName="parent" referencedColumnNames="id"/>
     </changeSet>
 </databaseChangeLog>

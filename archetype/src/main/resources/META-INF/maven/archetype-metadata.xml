@@ -32,9 +32,17 @@
     <requiredProperty key="springBootVersion">
       <defaultValue>4.1.0</defaultValue>
     </requiredProperty>
-    <!-- The Testcontainers PostgreSQL image the demo harness starts. -->
-    <requiredProperty key="postgresImage">
-      <defaultValue>postgres:16</defaultValue>
+    <!-- The database engine the generated demo harness targets: postgresql (default), mysql, or mariadb. It drives
+         the Testcontainers container and JDBC driver the harness uses and which runtime audit ITs are generated —
+         the plan-based audits (Join/OrderBy/WhereClause index) are PostgreSQL-only, so they are generated for
+         postgresql only; the catalog, JPA, and unconditional-mutation audits are generated for every engine. -->
+    <requiredProperty key="databasePlatform">
+      <defaultValue>postgresql</defaultValue>
+    </requiredProperty>
+    <!-- The container image the demo harness starts, overriding the per-platform default (postgres:16, mysql:8, or
+         mariadb:11). Default 'none' selects that per-platform default; set it to pin a specific image tag. -->
+    <requiredProperty key="databaseImage">
+      <defaultValue>none</defaultValue>
     </requiredProperty>
     <!-- When 'true', every generated test is annotated with JUnit's @Disabled, so the suite is generated and
          compiles but does not run. SchemaEntityValidationAuditIT is annotated on the class (not the method) so

@@ -32,7 +32,7 @@ import io.github.databaseaudits.spring.boot.DatabaseAuditTestConfiguration;
  *
  * <p>
  * It carries no database or container wiring of its own, so it works unchanged against any application: the demo
- * {@code @SpringBootApplication} and {@code DataSource} (a Testcontainers PostgreSQL) supply the database for the
+ * {@code @SpringBootApplication} and {@code DataSource} (a Testcontainers database) supply the database for the
  * audit ITs that extend it. Point it at your own application and {@code DataSource} to audit your real schema.
  */
 #end

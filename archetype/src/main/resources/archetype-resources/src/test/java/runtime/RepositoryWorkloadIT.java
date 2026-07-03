@@ -25,7 +25,7 @@ import ${package}.app.ParentRepository;
 /**
  * Primes the shared SQL capturer before the runtime audit ITs run. The {@code @Order(Integer.MIN_VALUE)} makes
  * this the first test class, so its indexable WHERE, ORDER BY, and foreign-key JOIN queries are captured (and the
- * capture is non-empty) by the time the plan-based audits read it.
+ * capture is non-empty) by the time the runtime audits read it.
 #if($generateMode == 'project')
  * This is part of the demo harness; replace it with your own repository workload so the runtime audits inspect
  * your real SQL.

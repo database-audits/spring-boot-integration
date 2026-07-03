@@ -51,7 +51,31 @@
       <scope>test</scope>
     </dependency>
 
-    <!-- Container-backed PostgreSQL; the demo config starts one shared container for the JVM. -->
+    <!-- Container-backed database; the demo config starts one shared container for the JVM. The Testcontainers
+         module and JDBC driver match the chosen databasePlatform. -->
+#if($databasePlatform == 'mysql')
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-mysql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.mysql</groupId>
+      <artifactId>mysql-connector-j</artifactId>
+      <scope>test</scope>
+    </dependency>
+#elseif($databasePlatform == 'mariadb')
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-mariadb</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mariadb.jdbc</groupId>
+      <artifactId>mariadb-java-client</artifactId>
+      <scope>test</scope>
+    </dependency>
+#else
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>testcontainers-postgresql</artifactId>
@@ -62,6 +86,7 @@
       <artifactId>postgresql</artifactId>
       <scope>test</scope>
     </dependency>
+#end
 #end
 
     <dependency>
