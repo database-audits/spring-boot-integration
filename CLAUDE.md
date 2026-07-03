@@ -208,18 +208,11 @@ mvn archetype:generate -DinteractiveMode=false `
 ## Conventions (shared across the database-audits project)
 
 - **Branch, don't commit to `main`.** Create/switch to a topic branch for any change.
-- **Tests:** `<ClassName>Test` = unit (surefire), `<ClassName>IT` = integration (failsafe), `<ClassName>AT` =
-  acceptance. Method names: `test<MethodName>_<StartingStateConditions>_<AssertedOutcome>`. Prefer AssertJ, assert whole
-  objects over field-by-field, and add `.as("…")` failure descriptions ending with a period.
-- **Code style:** favor immutability and constructor injection (tests use field injection); avoid
-  `utils`/`helper`/`support` package or class names; remove blank lines after an opening brace; write JavaDoc on
-  public classes/methods as complete sentences. Lombok and JSpecify (`@Nullable`) are available.
+- **Tests:** `<ClassName>Test` = unit (surefire), `<ClassName>IT` = integration (failsafe), `<ClassName>AT` = acceptance. Method names: `test<MethodName>_<StartingStateConditions>_<AssertedOutcome>`. Prefer AssertJ, assert whole objects over field-by-field, and add `.as("…")` failure descriptions ending with a period.
+- **Code style:** favor immutability and constructor injection (tests use field injection); avoid `utils`/`helper`/`support` package or class names; remove blank lines after an opening brace; write JavaDoc on public classes/methods as complete sentences. Lombok and JSpecify (`@Nullable`) are available.
 - **Commits:** Conventional Commits, atomic. Types `feat|fix|docs|refactor|test|build|ci`; scopes include the DB
-  names plus `core`, `spring`, `pom`, `site`, `database`, `metadata`, `scripts`. Capitalize the first word after
-  the scope; use `*` for bullets; reference issues in the footer as `Refs: 123` (no `#`). Use `git mv` to rename.
-- **Audits return findings; callers assert.** Each core audit's `audit(...)` returns a `List<String>` of
-  violations (empty = clean); in this module the `*AuditAssertion` beans surface that as
-  `assertClean(schema | excludes…)`. AssertJ is test-scoped in core, not a production dependency.
+  names plus `claude`, `archetype`, `integration`, `pom`, `site`, `database`, `metadata`, `scripts`. Capitalize the first word after the scope; use `*` for bullets; reference issues in the footer as `Refs: 123` (no `#`). Use `git mv` to rename.
+- **Audits return findings; callers assert.** Each core audit's `audit(...)` returns a `List<String>` of violations (empty = clean); in this module the `*AuditAssertion` beans surface that as `assertClean(schema | excludes…)`. AssertJ is test-scoped in core, not a production dependency.
 
 ## Jackknife (`.jackknife/`)
 
@@ -234,4 +227,3 @@ without asking) and follow `.jackknife/USAGE.md`.
 - To start docker, run "Rancher Desktop".
 - Keep the archetype generated classes as pure as possible, not using Lombok
 - Keep the archetype generated classes simple as possible, only using JUnit and this product's classes and not using other library classes such as Lombok.  Ask before adding a non-JDK class usage to an archetype generated class.
-
