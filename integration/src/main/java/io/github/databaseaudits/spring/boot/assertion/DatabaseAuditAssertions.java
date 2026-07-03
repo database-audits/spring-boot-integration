@@ -1,11 +1,8 @@
 package io.github.databaseaudits.spring.boot.assertion;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-
-import io.github.databaseaudits.audit.catalog.PrimaryKeyPresenceAudit;
+import java.util.function.Predicate;
 
 /**
  * Convenience facade that runs whole audit families in one call. Each family
@@ -15,65 +12,24 @@ import io.github.databaseaudits.audit.catalog.PrimaryKeyPresenceAudit;
  * {@link IllegalStateException} (vacuous capture, unsupported platform) —
  * propagate immediately. For per-audit granularity, inject the individual
  * {@code *AuditAssertion} beans instead.
+ *
+ * <p>
+ * The facade drives the audits through the family-agnostic
+ * {@link AuditAssertion} contract, so it iterates the suite's roster rather than
+ * enumerating each audit — adding an audit needs no change here.
  */
 public class DatabaseAuditAssertions {
-    private final ForeignKeyIndexAuditAssertion foreignKeyIndex;
-    private final ForeignKeyNotNullAuditAssertion foreignKeyNotNull;
-    private final ForeignKeyTypeMatchAuditAssertion foreignKeyTypeMatch;
-    private final PrimaryKeyPresenceAuditAssertion primaryKeyPresence;
-    private final RedundantIndexAuditAssertion redundantIndex;
-    private final SchemaEntityValidationAuditAssertion schemaEntityValidation;
-    private final JoinIndexAuditAssertion joinIndex;
-    private final OrderByIndexAuditAssertion orderByIndex;
-    private final WhereClauseIndexAuditAssertion whereClauseIndex;
-    private final UnconditionalMutationAuditAssertion unconditionalMutation;
+    private final List<AuditAssertion> assertions;
 
     /**
-     * Constructs the facade from the per-audit assertions.
+     * Constructs the facade from the suite's audit assertions.
      *
-     * @param foreignKeyIndex
-     *                                   the foreign-key index assertion.
-     * @param foreignKeyNotNull
-     *                                   the foreign-key not-null assertion.
-     * @param foreignKeyTypeMatch
-     *                                   the foreign-key type-match assertion.
-     * @param primaryKeyPresence
-     *                                   the primary-key presence assertion.
-     * @param redundantIndex
-     *                                   the redundant-index assertion.
-     * @param schemaEntityValidation
-     *                                   the JPA schema/entity validation
-     *                                   assertion.
-     * @param joinIndex
-     *                                   the join-index assertion.
-     * @param orderByIndex
-     *                                   the order-by index assertion.
-     * @param whereClauseIndex
-     *                                   the where-clause index assertion.
-     * @param unconditionalMutation
-     *                                   the unconditional-mutation assertion.
+     * @param assertions
+     *                       every audit assertion to run, in the order the suite
+     *                       wires them.
      */
-    public DatabaseAuditAssertions(
-            final ForeignKeyIndexAuditAssertion foreignKeyIndex,
-            final ForeignKeyNotNullAuditAssertion foreignKeyNotNull,
-            final ForeignKeyTypeMatchAuditAssertion foreignKeyTypeMatch,
-            final PrimaryKeyPresenceAuditAssertion primaryKeyPresence,
-            final RedundantIndexAuditAssertion redundantIndex,
-            final SchemaEntityValidationAuditAssertion schemaEntityValidation,
-            final JoinIndexAuditAssertion joinIndex,
-            final OrderByIndexAuditAssertion orderByIndex,
-            final WhereClauseIndexAuditAssertion whereClauseIndex,
-            final UnconditionalMutationAuditAssertion unconditionalMutation) {
-        this.foreignKeyIndex = foreignKeyIndex;
-        this.foreignKeyNotNull = foreignKeyNotNull;
-        this.foreignKeyTypeMatch = foreignKeyTypeMatch;
-        this.primaryKeyPresence = primaryKeyPresence;
-        this.redundantIndex = redundantIndex;
-        this.schemaEntityValidation = schemaEntityValidation;
-        this.joinIndex = joinIndex;
-        this.orderByIndex = orderByIndex;
-        this.whereClauseIndex = whereClauseIndex;
-        this.unconditionalMutation = unconditionalMutation;
+    public DatabaseAuditAssertions(final List<AuditAssertion> assertions) {
+        this.assertions = List.copyOf(assertions);
     }
 
     /**
@@ -99,24 +55,15 @@ public class DatabaseAuditAssertions {
      */
     public void assertCatalogClean(final String schema,
             final DatabaseAuditExcludes excludes) {
-        assertAll(
-                () -> foreignKeyIndex.assertClean(schema,
-                        excludes.foreignKeyIndexConstraints()),
-                () -> foreignKeyNotNull.assertClean(schema,
-                        excludes.foreignKeyNotNullColumns()),
-                () -> foreignKeyTypeMatch.assertClean(schema,
-                        excludes.foreignKeyTypeMatchColumns()),
-                () -> primaryKeyPresence.assertClean(schema,
-                        primaryKeyExcludes(excludes)),
-                () -> redundantIndex.assertClean(schema,
-                        excludes.redundantIndexes()));
+        assertFamily(AuditFamily.CATALOG, new AuditScope(schema, excludes));
     }
 
     /**
      * Asserts that the JPA mapping audit is clean.
      */
     public void assertJpaClean() {
-        schemaEntityValidation.assertClean();
+        assertFamily(AuditFamily.JPA,
+                new AuditScope(null, DatabaseAuditExcludes.none()));
     }
 
     /**
@@ -135,15 +82,7 @@ public class DatabaseAuditAssertions {
      *                     the exclusions to apply.
      */
     public void assertRuntimeClean(final DatabaseAuditExcludes excludes) {
-        assertAll(
-                () -> joinIndex.assertClean(excludes.planRelations(),
-                        excludes.planSqlFragments()),
-                () -> orderByIndex.assertClean(excludes.planRelations(),
-                        excludes.planSqlFragments()),
-                () -> whereClauseIndex.assertClean(excludes.planRelations(),
-                        excludes.planSqlFragments()),
-                () -> unconditionalMutation.assertClean(
-                        excludes.unconditionalMutationStatements()));
+        assertFamily(AuditFamily.RUNTIME, new AuditScope(null, excludes));
     }
 
     /**
@@ -167,23 +106,23 @@ public class DatabaseAuditAssertions {
      */
     public void assertAllClean(final String schema,
             final DatabaseAuditExcludes excludes) {
-        assertAll(() -> assertCatalogClean(schema, excludes),
-                this::assertJpaClean, () -> assertRuntimeClean(excludes));
+        assertMatching(assertion -> true, new AuditScope(schema, excludes));
     }
 
-    private static Set<String> primaryKeyExcludes(
-            final DatabaseAuditExcludes excludes) {
-        final Set<String> tables = new HashSet<>(
-                PrimaryKeyPresenceAudit.LIQUIBASE_BOOKKEEPING_TABLES);
-        tables.addAll(excludes.primaryKeyTables());
-        return tables;
+    private void assertFamily(final AuditFamily family,
+            final AuditScope scope) {
+        assertMatching(assertion -> assertion.family() == family, scope);
     }
 
-    private static void assertAll(final Runnable... checks) {
+    private void assertMatching(final Predicate<AuditAssertion> selector,
+            final AuditScope scope) {
         final List<String> failures = new ArrayList<>();
-        for (final Runnable check : checks) {
+        for (final AuditAssertion assertion : assertions) {
+            if (!selector.test(assertion)) {
+                continue;
+            }
             try {
-                check.run();
+                assertion.assertClean(scope);
             } catch (final AssertionError failure) {
                 failures.add(failure.getMessage());
             }

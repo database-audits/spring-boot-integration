@@ -17,6 +17,7 @@ public class DatabaseAuditExcludes {
     private final Set<String> foreignKeyIndexConstraints;
     private final Set<String> foreignKeyNotNullColumns;
     private final Set<String> foreignKeyTypeMatchColumns;
+    private final Set<String> jpaExcludedRelations;
     private final Set<String> planRelations;
     private final List<String> planSqlFragments;
     private final Set<String> primaryKeyTables;
@@ -27,6 +28,7 @@ public class DatabaseAuditExcludes {
         this.foreignKeyIndexConstraints = builder.foreignKeyIndexConstraints;
         this.foreignKeyNotNullColumns = builder.foreignKeyNotNullColumns;
         this.foreignKeyTypeMatchColumns = builder.foreignKeyTypeMatchColumns;
+        this.jpaExcludedRelations = builder.jpaExcludedRelations;
         this.planRelations = builder.planRelations;
         this.planSqlFragments = builder.planSqlFragments;
         this.primaryKeyTables = builder.primaryKeyTables;
@@ -65,6 +67,10 @@ public class DatabaseAuditExcludes {
         return foreignKeyTypeMatchColumns;
     }
 
+    Set<String> jpaExcludedRelations() {
+        return jpaExcludedRelations;
+    }
+
     Set<String> planRelations() {
         return planRelations;
     }
@@ -92,6 +98,7 @@ public class DatabaseAuditExcludes {
         private Set<String> foreignKeyIndexConstraints = Set.of();
         private Set<String> foreignKeyNotNullColumns = Set.of();
         private Set<String> foreignKeyTypeMatchColumns = Set.of();
+        private Set<String> jpaExcludedRelations = Set.of();
         private Set<String> planRelations = Set.of();
         private List<String> planSqlFragments = List.of();
         private Set<String> primaryKeyTables = Set.of();
@@ -139,6 +146,20 @@ public class DatabaseAuditExcludes {
          */
         public Builder foreignKeyTypeMatchColumns(final Set<String> columns) {
             this.foreignKeyTypeMatchColumns = columns;
+            return this;
+        }
+
+        /**
+         * Excludes relations (tables or {@code table.column} pairs) from the
+         * JPA schema/entity validation audit.
+         *
+         * @param relations
+         *                      the relation names to exclude, matched
+         *                      case-insensitively.
+         * @return this builder.
+         */
+        public Builder jpaExcludedRelations(final Set<String> relations) {
+            this.jpaExcludedRelations = relations;
             return this;
         }
 

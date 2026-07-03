@@ -1,5 +1,7 @@
 package io.github.databaseaudits.spring.boot;
 
+import java.util.List;
+
 import javax.sql.DataSource;
 
 import io.github.databaseaudits.audit.catalog.ForeignKeyIndexAudit;
@@ -17,6 +19,7 @@ import io.github.databaseaudits.catalog.IndexCatalog;
 import io.github.databaseaudits.jdbc.CatalogQueries;
 import io.github.databaseaudits.plan.QueryPlanExplainer;
 import io.github.databaseaudits.platform.DatabasePlatform;
+import io.github.databaseaudits.spring.boot.assertion.AuditAssertion;
 import io.github.databaseaudits.spring.boot.assertion.DatabaseAuditAssertions;
 import io.github.databaseaudits.spring.boot.assertion.ForeignKeyIndexAuditAssertion;
 import io.github.databaseaudits.spring.boot.assertion.ForeignKeyNotNullAuditAssertion;
@@ -65,6 +68,7 @@ public class DatabaseAuditSuite {
     private final OrderByIndexAuditAssertion orderByIndexAuditAssertion;
     private final WhereClauseIndexAuditAssertion whereClauseIndexAuditAssertion;
     private final UnconditionalMutationAuditAssertion unconditionalMutationAuditAssertion;
+    private final List<AuditAssertion> all;
     private final DatabaseAuditAssertions assertions;
 
     /**
@@ -124,13 +128,14 @@ public class DatabaseAuditSuite {
         this.unconditionalMutationAuditAssertion =
                 new UnconditionalMutationAuditAssertion(
                         new UnconditionalMutationAudit(sqlCapturer));
-        this.assertions = new DatabaseAuditAssertions(
-                foreignKeyIndexAuditAssertion, foreignKeyNotNullAuditAssertion,
+        this.all = List.of(foreignKeyIndexAuditAssertion,
+                foreignKeyNotNullAuditAssertion,
                 foreignKeyTypeMatchAuditAssertion,
                 primaryKeyPresenceAuditAssertion, redundantIndexAuditAssertion,
                 schemaEntityValidationAuditAssertion, joinIndexAuditAssertion,
                 orderByIndexAuditAssertion, whereClauseIndexAuditAssertion,
                 unconditionalMutationAuditAssertion);
+        this.assertions = new DatabaseAuditAssertions(all);
     }
 
     /**
@@ -140,6 +145,18 @@ public class DatabaseAuditSuite {
      */
     public DatabaseAuditAssertions assertions() {
         return assertions;
+    }
+
+    /**
+     * Returns every audit assertion this suite wires, in family order (catalog,
+     * JPA, runtime). Backs the {@link DatabaseAuditAssertions} facade and the
+     * Spring bean registration, and lets a roster guard verify every core audit
+     * has a wired assertion.
+     *
+     * @return the wired audit assertions.
+     */
+    public List<AuditAssertion> all() {
+        return all;
     }
 
     /**

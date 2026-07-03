@@ -9,7 +9,7 @@ import java.util.List;
  * conditions (vacuous capture, unsupported platform) keep surfacing as the core
  * audits' {@link IllegalStateException}.
  */
-abstract class AbstractAuditAssertion {
+abstract class AbstractAuditAssertion implements AuditAssertion {
     /**
      * Throws an {@link AssertionError} if the audit returned any violations.
      *

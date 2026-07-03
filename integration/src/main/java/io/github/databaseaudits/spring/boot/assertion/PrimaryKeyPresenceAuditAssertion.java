@@ -1,5 +1,6 @@
 package io.github.databaseaudits.spring.boot.assertion;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import io.github.databaseaudits.audit.catalog.PrimaryKeyPresenceAudit;
@@ -50,5 +51,18 @@ public class PrimaryKeyPresenceAuditAssertion extends AbstractAuditAssertion {
     public void assertClean(final String schema,
             final Set<String> excludedTables) {
         failOnViolations(MESSAGE, audit.audit(schema, excludedTables));
+    }
+
+    @Override
+    public AuditFamily family() {
+        return AuditFamily.CATALOG;
+    }
+
+    @Override
+    public void assertClean(final AuditScope scope) {
+        final Set<String> excludedTables = new HashSet<>(
+                PrimaryKeyPresenceAudit.LIQUIBASE_BOOKKEEPING_TABLES);
+        excludedTables.addAll(scope.excludes().primaryKeyTables());
+        assertClean(scope.schema(), excludedTables);
     }
 }

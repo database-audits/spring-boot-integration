@@ -47,4 +47,14 @@ public class UnconditionalMutationAuditAssertion
     public void assertClean(final Set<String> excludedStatements) {
         failOnViolations(MESSAGE, audit.audit(excludedStatements));
     }
+
+    @Override
+    public AuditFamily family() {
+        return AuditFamily.RUNTIME;
+    }
+
+    @Override
+    public void assertClean(final AuditScope scope) {
+        assertClean(scope.excludes().unconditionalMutationStatements());
+    }
 }

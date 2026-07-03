@@ -51,4 +51,15 @@ public class ForeignKeyTypeMatchAuditAssertion extends AbstractAuditAssertion {
             final Set<String> excludedColumns) {
         failOnViolations(MESSAGE, audit.audit(schema, excludedColumns));
     }
+
+    @Override
+    public AuditFamily family() {
+        return AuditFamily.CATALOG;
+    }
+
+    @Override
+    public void assertClean(final AuditScope scope) {
+        assertClean(scope.schema(),
+                scope.excludes().foreignKeyTypeMatchColumns());
+    }
 }

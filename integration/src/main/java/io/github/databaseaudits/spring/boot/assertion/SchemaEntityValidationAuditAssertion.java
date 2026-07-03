@@ -50,4 +50,15 @@ public class SchemaEntityValidationAuditAssertion
         failOnViolations(MESSAGE,
                 audit.audit(Set.copyOf(Arrays.asList(excludedRelations))));
     }
+
+    @Override
+    public AuditFamily family() {
+        return AuditFamily.JPA;
+    }
+
+    @Override
+    public void assertClean(final AuditScope scope) {
+        assertClean(
+                scope.excludes().jpaExcludedRelations().toArray(new String[0]));
+    }
 }

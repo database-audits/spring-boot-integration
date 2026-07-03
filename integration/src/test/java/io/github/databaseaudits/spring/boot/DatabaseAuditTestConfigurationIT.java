@@ -9,13 +9,19 @@ import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
 
 import org.hibernate.cfg.JdbcSettings;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.core.type.filter.RegexPatternTypeFilter;
 
 import io.github.databaseaudits.capture.SqlCapturingStatementInspector;
+import io.github.databaseaudits.spring.boot.assertion.AuditAssertion;
 import jakarta.persistence.EntityManagerFactory;
 
 /**
@@ -97,6 +103,45 @@ class DatabaseAuditTestConfigurationIT {
         assertThat(configuration.databaseAuditAssertions(suite))
                 .as("The databaseAuditAssertions facade bean constructs.")
                 .isNotNull();
+    }
+
+    /**
+     * Guards the roster: every concrete {@code *Audit} in core must have a
+     * wired {@code *AuditAssertion} in the suite, so adding a core audit without
+     * wiring it here fails the build instead of silently never running.
+     */
+    @Test
+    void testSuiteAll_WiresAnAssertionForEveryCoreAudit()
+            throws SQLException {
+        final ClassPathScanningCandidateComponentProvider scanner =
+                new ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(
+                new RegexPatternTypeFilter(Pattern.compile(".*Audit")));
+        final Set<String> coreAudits = scanner
+                .findCandidateComponents("io.github.databaseaudits.audit")
+                .stream()
+                .map(definition -> simpleName(definition.getBeanClassName()))
+                .collect(Collectors.toSet());
+
+        final DatabaseAuditSuite suite = new DatabaseAuditSuite(
+                postgresDataSource(), mock(EntityManagerFactory.class),
+                new SqlCapturingStatementInspector());
+        final Set<String> wiredAudits = suite.all().stream()
+                .map(DatabaseAuditTestConfigurationIT::auditName)
+                .collect(Collectors.toSet());
+
+        assertThat(wiredAudits).as(
+                "Every core *Audit has a wired *AuditAssertion in the suite.")
+                .isEqualTo(coreAudits);
+    }
+
+    private static String simpleName(final String className) {
+        return className.substring(className.lastIndexOf('.') + 1);
+    }
+
+    private static String auditName(final AuditAssertion assertion) {
+        final String name = assertion.getClass().getSimpleName();
+        return name.substring(0, name.length() - "Assertion".length());
     }
 
     private static DataSource postgresDataSource() throws SQLException {

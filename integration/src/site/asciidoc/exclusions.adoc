@@ -28,9 +28,10 @@ DatabaseAuditExcludes excludes = DatabaseAuditExcludes.builder()
     .foreignKeyNotNullColumns(Set.of("order.customer_id"))   // table.column
     .foreignKeyTypeMatchColumns(Set.of("event.entity_id"))   // table.column
     .redundantIndexes(Set.of("idx_status_redundant"))
+    .jpaExcludedRelations(Set.of("legacy_reporting_view"))   // table or table.column, case-insensitive
     .planRelations(Set.of("small_lookup_table"))             // shared by WHERE/ORDER BY/JOIN audits
     .planSqlFragments(List.of("UPDATE migration_flag"))      // matched as substring
-    .unconditionalMutationStatements(Set.of("DELETE FROM scratch_pad")) // exact match
+    .unconditionalMutationStatements(Set.of("DELETE FROM scratch_pad")) // normalized, case-insensitive
     .build();
 ----
 
@@ -74,6 +75,16 @@ audits.assertAllClean(schema, excludes);
 `PrimaryKeyPresenceAuditAssertion` also excludes the Liquibase bookkeeping tables
 (`databasechangelog`, `databasechangeloglock`) automatically, without needing an explicit exclusion.
 
+=== JPA exclusions
+
+|===
+| Builder method | Applies to | Match semantics
+
+| `jpaExcludedRelations(Set<String>)`
+| `SchemaEntityValidationAuditAssertion`
+| A `table` or `table.column` name — optionally schema-qualified as `schema.table` / `schema.table.column` — matched case-insensitively. Suppresses a known, acceptable entity/schema mismatch.
+|===
+
 === Runtime exclusions
 
 |===
@@ -89,7 +100,7 @@ audits.assertAllClean(schema, excludes);
 
 | `unconditionalMutationStatements(Set<String>)`
 | `UnconditionalMutationAuditAssertion`
-| Exact full statement match.
+| Case-insensitive match against the normalized statement text.
 |===
 
 == Passing exclusions to individual assertion beans

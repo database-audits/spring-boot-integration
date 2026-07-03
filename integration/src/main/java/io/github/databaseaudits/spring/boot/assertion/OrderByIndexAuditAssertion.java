@@ -49,4 +49,15 @@ public class OrderByIndexAuditAssertion extends AbstractAuditAssertion {
         failOnViolations(MESSAGE,
                 audit.audit(excludedRelations, excludedSqlFragments));
     }
+
+    @Override
+    public AuditFamily family() {
+        return AuditFamily.RUNTIME;
+    }
+
+    @Override
+    public void assertClean(final AuditScope scope) {
+        assertClean(scope.excludes().planRelations(),
+                scope.excludes().planSqlFragments());
+    }
 }

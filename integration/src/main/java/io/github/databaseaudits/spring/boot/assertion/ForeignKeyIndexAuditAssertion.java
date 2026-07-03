@@ -48,4 +48,15 @@ public class ForeignKeyIndexAuditAssertion extends AbstractAuditAssertion {
             final Set<String> excludedConstraints) {
         failOnViolations(MESSAGE, audit.audit(schema, excludedConstraints));
     }
+
+    @Override
+    public AuditFamily family() {
+        return AuditFamily.CATALOG;
+    }
+
+    @Override
+    public void assertClean(final AuditScope scope) {
+        assertClean(scope.schema(),
+                scope.excludes().foreignKeyIndexConstraints());
+    }
 }

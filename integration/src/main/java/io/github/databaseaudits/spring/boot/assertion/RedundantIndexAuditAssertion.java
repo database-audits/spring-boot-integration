@@ -48,4 +48,14 @@ public class RedundantIndexAuditAssertion extends AbstractAuditAssertion {
             final Set<String> excludedIndexes) {
         failOnViolations(MESSAGE, audit.audit(schema, excludedIndexes));
     }
+
+    @Override
+    public AuditFamily family() {
+        return AuditFamily.CATALOG;
+    }
+
+    @Override
+    public void assertClean(final AuditScope scope) {
+        assertClean(scope.schema(), scope.excludes().redundantIndexes());
+    }
 }
