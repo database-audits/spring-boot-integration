@@ -199,7 +199,9 @@ public class DatabaseAuditExcludes {
          * unconditional-mutation audit.
          *
          * @param statements
-         *                       the exact statements to exclude.
+         *                       the statements to exclude, matched
+         *                       case-insensitively against the normalized
+         *                       statement text.
          * @return this builder.
          */
         public Builder unconditionalMutationStatements(

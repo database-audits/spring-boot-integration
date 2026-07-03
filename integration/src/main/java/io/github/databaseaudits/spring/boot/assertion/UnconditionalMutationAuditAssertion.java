@@ -39,8 +39,10 @@ public class UnconditionalMutationAuditAssertion
      * ignoring the excluded statements.
      *
      * @param excludedStatements
-     *                               the exact statements to exclude as
-     *                               deliberate full-table mutations.
+     *                               the statements to exclude as deliberate
+     *                               full-table mutations, matched
+     *                               case-insensitively against the normalized
+     *                               statement text.
      */
     public void assertClean(final Set<String> excludedStatements) {
         failOnViolations(MESSAGE, audit.audit(excludedStatements));
