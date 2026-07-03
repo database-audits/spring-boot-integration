@@ -7,19 +7,9 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 
 import io.github.databaseaudits.capture.SqlCapturingStatementInspector;
+import io.github.databaseaudits.spring.boot.AuditAssertionRegistrar;
 import io.github.databaseaudits.spring.boot.DatabaseAuditSuite;
 import io.github.databaseaudits.spring.boot.SqlCapturerRegisteringPostProcessor;
-import io.github.databaseaudits.spring.boot.assertion.DatabaseAuditAssertions;
-import io.github.databaseaudits.spring.boot.assertion.ForeignKeyIndexAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.ForeignKeyNotNullAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.ForeignKeyTypeMatchAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.JoinIndexAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.OrderByIndexAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.PrimaryKeyPresenceAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.RedundantIndexAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.SchemaEntityValidationAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.UnconditionalMutationAuditAssertion;
-import io.github.databaseaudits.spring.boot.assertion.WhereClauseIndexAuditAssertion;
 import jakarta.persistence.EntityManagerFactory;
 
 /**
@@ -40,6 +30,13 @@ import jakarta.persistence.EntityManagerFactory;
  * datasource with {@code preferQueryMode=simple} for the plan-based audits. (The auto-wiring applies when the factory
  * bean is a {@code LocalContainerEntityManagerFactoryBean}, the usual case; otherwise set the inspector where you
  * build the factory, or run only the catalog and JPA audits against it.)
+ *
+ * <p>
+ * The individual {@code *AuditAssertion} beans — and the {@code DatabaseAuditAssertions} facade — are published by
+ * an {@link AuditAssertionRegistrar} rather than one {@code @Bean} method apiece, so this configuration stays in step
+ * with the audit roster automatically: it mirrors the stock configuration's own mechanism. The registrar prefixes the
+ * DsNameToken datasource's bean names, so they never collide with the primary datasource's audit beans should an
+ * application import both.
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class DatabaseAuditDsNameTokenTestConfiguration {
@@ -87,58 +84,20 @@ public class DatabaseAuditDsNameTokenTestConfiguration {
         return new DatabaseAuditSuite(dataSource, entityManagerFactory, dsNameTokenSqlCapturer);
     }
 
+    /**
+     * Publishes every {@code *AuditAssertion} the DsNameToken suite wires — and the {@code DatabaseAuditAssertions}
+     * facade — as a bean under its concrete type, so the audit ITs {@code @Autowired} them with no per-audit
+     * {@code @Bean} method here. The bean names carry a {@code dsNameToken} prefix so they never collide with the
+     * primary datasource's audit beans; the beans are not primary, so an unqualified by-type injection still resolves
+     * to the primary datasource's assertions.
+     *
+     * @param dsNameTokenDatabaseAuditSuite
+     *                                          the DsNameToken datasource's audit suite.
+     * @return the registrar that publishes the DsNameToken suite's assertions as beans.
+     */
     @Bean
-    ForeignKeyIndexAuditAssertion foreignKeyIndexAuditAssertion(final DatabaseAuditSuite suite) {
-        return suite.foreignKeyIndexAuditAssertion();
-    }
-
-    @Bean
-    ForeignKeyNotNullAuditAssertion foreignKeyNotNullAuditAssertion(final DatabaseAuditSuite suite) {
-        return suite.foreignKeyNotNullAuditAssertion();
-    }
-
-    @Bean
-    ForeignKeyTypeMatchAuditAssertion foreignKeyTypeMatchAuditAssertion(final DatabaseAuditSuite suite) {
-        return suite.foreignKeyTypeMatchAuditAssertion();
-    }
-
-    @Bean
-    PrimaryKeyPresenceAuditAssertion primaryKeyPresenceAuditAssertion(final DatabaseAuditSuite suite) {
-        return suite.primaryKeyPresenceAuditAssertion();
-    }
-
-    @Bean
-    RedundantIndexAuditAssertion redundantIndexAuditAssertion(final DatabaseAuditSuite suite) {
-        return suite.redundantIndexAuditAssertion();
-    }
-
-    @Bean
-    SchemaEntityValidationAuditAssertion schemaEntityValidationAuditAssertion(final DatabaseAuditSuite suite) {
-        return suite.schemaEntityValidationAuditAssertion();
-    }
-
-    @Bean
-    JoinIndexAuditAssertion joinIndexAuditAssertion(final DatabaseAuditSuite suite) {
-        return suite.joinIndexAuditAssertion();
-    }
-
-    @Bean
-    OrderByIndexAuditAssertion orderByIndexAuditAssertion(final DatabaseAuditSuite suite) {
-        return suite.orderByIndexAuditAssertion();
-    }
-
-    @Bean
-    WhereClauseIndexAuditAssertion whereClauseIndexAuditAssertion(final DatabaseAuditSuite suite) {
-        return suite.whereClauseIndexAuditAssertion();
-    }
-
-    @Bean
-    UnconditionalMutationAuditAssertion unconditionalMutationAuditAssertion(final DatabaseAuditSuite suite) {
-        return suite.unconditionalMutationAuditAssertion();
-    }
-
-    @Bean
-    DatabaseAuditAssertions databaseAuditAssertions(final DatabaseAuditSuite suite) {
-        return suite.assertions();
+    AuditAssertionRegistrar dsNameTokenAuditAssertionRegistrar(
+            @Qualifier("dsNameTokenDatabaseAuditSuite") DatabaseAuditSuite dsNameTokenDatabaseAuditSuite) {
+        return new AuditAssertionRegistrar(dsNameTokenDatabaseAuditSuite, "dsNameToken", false);
     }
 }
