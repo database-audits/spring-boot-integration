@@ -13,7 +13,7 @@ wiring.
 The entire production surface is a single class, `DatabaseAuditTestConfiguration`
 (`src/main/java/.../spring/boot/`), a `@TestConfiguration(proxyBeanMethods = false)` that:
 
-- registers every core audit and its collaborators (`JdbcSupport`, `IndexCatalog`, `DatabasePlatform`,
+- registers every core audit and its collaborators (`CatalogQueries`, `IndexCatalog`, `DatabasePlatform`,
   `QueryPlanExplainer`, `SqlCapturingStatementInspector`) as explicit `@Bean`s, and
 - registers the SQL capturer as Hibernate's `StatementInspector` (via a `HibernatePropertiesCustomizer` setting
   `JdbcSettings.STATEMENT_INSPECTOR`), so the runtime audits see every statement the repositories run.
