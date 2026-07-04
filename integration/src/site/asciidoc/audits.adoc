@@ -151,7 +151,7 @@ class WhereClauseIndexAuditIT extends AbstractDatabaseAuditIT {
 }
 ----
 
-NOTE: `@Order` across test *classes* requires `ClassOrderer$OrderAnnotation` enabled in
+*Note:* `@Order` across test *classes* requires `ClassOrderer$OrderAnnotation` enabled in
 `junit-platform.properties`. See link:usage.html#_sql_capture_ordering[Usage — SQL capture ordering].
 
 == Assertion outcomes

@@ -20,12 +20,12 @@ verify generation correctness.
 Run `archetype:generate` from any directory. Use `-DoutputDirectory` to control where the generated
 project is written, or omit it to generate in the current directory.
 
-NOTE: Generation is *not* idempotent. In `project` mode the plugin refuses to generate into a directory
+*Note:* Generation is *not* idempotent. In `project` mode the plugin refuses to generate into a directory
 that already contains a `pom.xml`. In `tests-only` mode the post-generate copy step silently overwrites
 any existing file of the same name — see the <<_generate_tests_only_for_an_existing_project,tests-only section>>
 for the full warning.
 
-NOTE: Replace `VERSION` in the commands and dependency snippet below with the latest released
+*Note:* Replace `VERSION` in the commands and dependency snippet below with the latest released
 `database-audits-spring-boot-integration` version.
 
 == Generate the full project
@@ -63,7 +63,7 @@ Set `-DprojectDirectory` to your project root: an absolute path, or a path relat
 run the command from — use `.` when you run from the project root itself. The post-generate script
 copies the generated `src/` tree into `projectDirectory` and deletes the scratch directory.
 
-WARNING: The post-generate copy step *silently overwrites any existing file of the same name* in
+*Warning:* The post-generate copy step *silently overwrites any existing file of the same name* in
 `-DprojectDirectory` without prompting or backing up. Re-running generation on a project that already
 contains generated files will clobber any customizations you have made to them. Commit or back up
 your changes before regenerating.
@@ -92,7 +92,7 @@ mvn archetype:generate -DinteractiveMode=false \
   -DprojectDirectory=.
 ----
 
-NOTE: On PowerShell, replace each trailing `\` with a backtick (`` ` ``) as the very last character on
+*Note:* On PowerShell, replace each trailing `\` with a backtick (`` ` ``) as the very last character on
 the line — no trailing space.
 
 == Properties

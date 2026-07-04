@@ -16,7 +16,7 @@ catalog (schema metadata), JPA (entity/schema agreement), and runtime (live SQL 
 </dependency>
 ----
 
-NOTE: Replace `VERSION` with the latest released version.
+*Note:* Replace `VERSION` with the latest released version.
 
 See link:usage.html[Usage] to enable the audits and write your first tests, link:audits.html[Audits] for what
 each audit checks, link:exclusions.html[Exclusions] to suppress known violations, and
