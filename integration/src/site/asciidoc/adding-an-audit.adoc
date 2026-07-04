@@ -1,0 +1,157 @@
+= Adding an Audit
+
+This page is the Spring half of adding a new audit. Start in core — write the audit itself following the
+link:https://database-audits.github.io/core/adding-an-audit.html[core Adding an Audit] guide — then wire it here.
+The link:architecture.html[Architecture] page describes the assertion seam this builds on.
+
+== What the integration adds around a core audit
+
+Core returns findings; this module turns them into a Spring-injectable *assertion* and registers it as a bean.
+Since the roster refactoring, that is two edits:
+
+. A `<Audit>AuditAssertion` class that runs the core audit and throws a curated `AssertionError` on violations.
+. One line in `DatabaseAuditSuite` that constructs it.
+
+Everything else is generic. `AuditAssertionRegistrar` publishes the new assertion as a bean automatically, the
+`DatabaseAuditAssertions` facade picks it up by family, and the archetype's per-datasource config inherits it —
+none of them enumerate the roster, so none of them change.
+
+== The seam, in one paragraph
+
+Every assertion implements `AuditAssertion` — `family()` plus a uniform `assertClean(AuditScope)` — so the facade
+and the bean wiring can drive the whole roster without naming each audit. Each assertion *also* keeps its own
+typed `assertClean(schema | excludes…)` overloads, which is what consumers `@Autowired` and call directly.
+`AbstractAuditAssertion` supplies `failOnViolations(message, findings)`, which throws an `AssertionError` (a test
+*failure*) carrying the curated message; core's `IllegalStateException` for a cannot-run condition still surfaces
+as a test *error*.
+
+[#step-assertion]
+== Step 1 — Write the `<Audit>AuditAssertion`
+
+Add it under `io.github.databaseaudits.spring.boot.assertion`, alongside its siblings.
+`PrimaryKeyPresenceAuditAssertion` is the reference:
+
+[source,java]
+----
+package io.github.databaseaudits.spring.boot.assertion;
+
+import java.util.Set;
+
+import io.github.databaseaudits.audit.catalog.XxxAudit;
+
+/** Asserts that … using {@link XxxAudit}. */
+public class XxxAuditAssertion extends AbstractAuditAssertion {
+    private static final String MESSAGE =
+            "Curated, fix-oriented description of the violation and how to fix or exclude it.";
+
+    private final XxxAudit audit;
+
+    public XxxAuditAssertion(final XxxAudit audit) {
+        this.audit = audit;
+    }
+
+    /** The typed overload consumers inject this bean and call. */
+    public void assertClean(final String schema, final Set<String> excluded) {
+        failOnViolations(MESSAGE, audit.audit(schema, excluded));
+    }
+
+    @Override
+    public AuditFamily family() {
+        return AuditFamily.CATALOG;   // CATALOG, JPA, or RUNTIME
+    }
+
+    @Override
+    public void assertClean(final AuditScope scope) {
+        assertClean(scope.schema(), scope.excludes().xxxExcludes());
+    }
+}
+----
+
+Notes:
+
+* Give it the typed `assertClean(...)` overload(s) that match the audit's own parameters — a no-exclusion
+  convenience overload too, if that reads well (see `PrimaryKeyPresenceAuditAssertion`, which always folds in the
+  Liquibase bookkeeping tables).
+* `family()` returns the `AuditFamily` matching the core package — this is what routes the assertion into the
+  facade's `assertCatalogClean` / `assertJpaClean` / `assertRuntimeClean` runs.
+* `assertClean(AuditScope)` is the family-agnostic entry the facade drives; pull the audit's own slot from
+  `scope.excludes()`. JPA and runtime audits ignore `scope.schema()` (it may be `null`).
+* The class name must be `<CoreAuditSimpleName>Assertion` — the roster-guard test (below) matches on exactly
+  that.
+
+[#step-suite]
+== Step 2 — Wire it in `DatabaseAuditSuite`
+
+`DatabaseAuditSuite` is the one legitimate enumeration of the roster, in family order (catalog, JPA, runtime).
+Add the constructing line — the audit wrapped in its assertion:
+
+[source,java]
+----
+new XxxAuditAssertion(new XxxAudit(catalogQueries, platform)),
+----
+
+using the collaborators the suite already builds (`catalogQueries`, `indexCatalog`, `platform`,
+`queryPlanExplainer`, `sqlCapturer`). A **PostgreSQL-only** audit goes inside the existing
+`if (platform == DatabasePlatform.POSTGRESQL)` block instead, so it is absent from the roster on other engines
+and the facade's runtime/all-family runs stay clean there rather than failing fast:
+
+[source,java]
+----
+if (platform == DatabasePlatform.POSTGRESQL) {
+    // …existing plan assertions…
+    roster.add(new XxxIndexAuditAssertion(
+            new XxxIndexAudit(queryPlanExplainer, sqlCapturer)));
+}
+----
+
+[#step-excludes]
+== Step 3 — Add an exclusion slot (only if facade-driven)
+
+`assertClean(AuditScope)` reads exclusions from `DatabaseAuditExcludes`. If your audit takes exclusions and you
+want them drivable through the facade (`assertAllClean(schema, excludes)`), add a slot: a field, a builder
+method, and a package-private accessor, following the existing ones:
+
+[source,java]
+----
+private final Set<String> xxxExcludes;          // field + constructor assignment
+
+Set<String> xxxExcludes() { return xxxExcludes; }   // accessor the assertion reads
+
+public Builder xxxExcludes(final Set<String> values) {   // builder setter
+    this.xxxExcludes = values;
+    return this;
+}
+----
+
+If the audit has no exclusions, `assertClean(AuditScope)` just calls the audit; no `DatabaseAuditExcludes` change
+is needed. Either way, the typed `assertClean(schema, Set<…>)` overload works for consumers injecting the bean
+directly.
+
+== Step 4 — Add the archetype example IT
+
+The archetype ships one example IT per audit under
+`archetype/src/main/resources/archetype-resources/src/test/java/{catalog,jpa,runtime}/`. Add a
+`<Audit>AuditIT.java` template beside its family's siblings: it should `extend AbstractDatabaseAuditIT`,
+`@Autowired` the new `<Audit>AuditAssertion` bean, and call `assertClean(…)` — pure JUnit + this product's
+classes, no Lombok or other libraries. A **PostgreSQL-only** example IT must also be added to the deletion list
+in `archetype-post-generate.groovy` (the block that removes the plan ITs for non-PostgreSQL engines), so it is
+not generated for MySQL/MariaDB.
+
+== Tests
+
+* The **roster-guard test** `DatabaseAuditTestConfigurationIT.testSuiteAll_WiresAnAssertionForEveryCoreAudit`
+  scans core for every concrete `*Audit` and asserts each has a wired `*AuditAssertion` in the suite. It fails
+  the build the moment a core audit lacks wiring here — so Step 2 is enforced, not merely documented.
+* Add a **`<Audit>AuditAssertionTest`** covering that a clean audit throws nothing and a violation throws an
+  `AssertionError` whose message carries the curated text plus the findings.
+* The archetype self-test (`archetype:integration-test`) generates and runs the example suite against
+  Testcontainers on every build, exercising the new IT end-to-end.
+
+== Checklist
+
+* [ ] `<Audit>AuditAssertion` in `…/assertion/` — typed overload(s), `family()`, `assertClean(AuditScope)`, curated `MESSAGE`.
+* [ ] One line in `DatabaseAuditSuite` (inside the PostgreSQL block if plan-based).
+* [ ] `DatabaseAuditExcludes` slot, if the audit's exclusions should be facade-driven.
+* [ ] Archetype example IT template (added to the post-generate deletion list if PostgreSQL-only).
+* [ ] Assertion unit test; roster-guard test passes; `.\mvnw.cmd clean install` green (integration + archetype).
+* [ ] link:audits.html[Audits] / core audit reference updated for the new audit.

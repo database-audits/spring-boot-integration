@@ -1,0 +1,126 @@
+= Adding a Database Platform
+
+Adding a database engine to the Spring integration has two layers, and the first is usually already done for you:
+
+. **The integration itself audits any engine core supports, with no code change.**
+  `DatabaseAuditTestConfiguration` detects the platform from the live `DataSource` at runtime, so once core
+  recognizes the engine, the wiring just works.
+. **The archetype needs a branch** to *generate* a runnable Testcontainers demo harness for the new engine.
+
+So the real work here is the archetype's database-selection seam. First make sure core supports the engine —
+follow the link:https://database-audits.github.io/core/adding-a-database.html[core Adding a Database Platform]
+guide — then do the steps below.
+
+== Layer 1 — the integration is automatic
+
+`DatabaseAuditSuite` calls `DatabasePlatform.fromDataSource(dataSource)` and builds the catalog, JPA, and
+capture-scan audits for whatever platform comes back. The plan-based runtime audits (Join/OrderBy/WhereClause)
+are wired **only** when the detected platform is PostgreSQL, so on any other engine the facade's runtime and
+all-family runs stay clean instead of failing fast on a PostgreSQL-only audit. Nothing in
+`DatabaseAuditTestConfiguration`, `DatabaseAuditSuite`, or the assertion beans names a specific engine — so
+there is nothing to change here when core adds one. (The IT `DatabaseAuditTestConfigurationIT` already proves a
+non-PostgreSQL suite omits the plan assertions.)
+
+== Layer 2 — the archetype demo-harness seam
+
+The archetype's `databasePlatform` property (`postgresql` default, plus `mysql`, `mariadb`) selects the demo
+container, the JDBC driver, and which runtime ITs are generated. Adding an engine means adding one branch to
+each Velocity template that switches on it. Copy the existing `mysql`/`mariadb` branches — they are the model
+for a non-PostgreSQL engine.
+
+=== Step 1 — `pom.xml`: driver + Testcontainers module
+
+In `archetype-resources/pom.xml`, add a branch to the `#if($databasePlatform == 'mysql')` … `#elseif` … `#else`
+chain that pulls the engine's Testcontainers module and JDBC driver (test scope):
+
+[source,xml]
+----
+#elseif($databasePlatform == 'newengine')
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-newengine</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.newengine</groupId>
+      <artifactId>newengine-jdbc</artifactId>
+      <scope>test</scope>
+    </dependency>
+----
+
+=== Step 2 — `DemoDatabaseTestConfig.java`: the container
+
+In `archetype-resources/src/test/java/app/DemoDatabaseTestConfig.java`, add branches to three switches: the image
+default, the Testcontainers container-class import, and the container field + `start()`:
+
+[source,java]
+----
+#elseif($databasePlatform == 'newengine')
+#set($image = 'newengine:1')
+...
+#elseif($databasePlatform == 'newengine')
+import org.testcontainers.newengine.NewEngineContainer;
+...
+#elseif($databasePlatform == 'newengine')
+    private static final NewEngineContainer DATABASE =
+            new NewEngineContainer(DockerImageName.parse("${image}"));
+    static {
+        DATABASE.start();
+    }
+----
+
+Leave the `preferQueryMode=simple` URL parameter on the PostgreSQL branch only — it is a PostgreSQL JDBC
+property the plan audits require, and those audits do not run on other engines.
+
+=== Step 3 — `application.properties`: schema and bookkeeping tables
+
+In `archetype-resources/src/test/resources/application.properties`, the non-PostgreSQL branch already handles two
+divergences; confirm they hold for the new engine, and widen the branch if not:
+
+* **Schema name.** MySQL and MariaDB have no `public` schema — their Testcontainers database is `test` — so when
+  `schemaName` is left at its PostgreSQL-oriented default the harness scans `test` instead. If the new engine
+  also lacks a `public` schema, the existing `#if($databasePlatform != 'postgresql' && $schemaName == 'public')`
+  branch covers it.
+* **Liquibase bookkeeping tables.** MySQL/MariaDB store the unquoted `DATABASECHANGELOG` upper-cased, which the
+  primary-key audit's built-in lowercase exclusion would miss; the properties force the lowercase names so the
+  exclusion applies. Keep this for any engine that upper-cases unquoted identifiers.
+
+The Liquibase changelog (`db.changelog-master.xml`) is engine-agnostic by design — note its comment about adding
+the foreign key *after* its index so engines that auto-index foreign keys (MySQL, MariaDB) do not create a
+redundant one. Verify the new engine reaches the same clean end state.
+
+=== Step 4 — metadata and the post-generate script
+
+* **`archetype-metadata.xml`** — extend the `databasePlatform` property's doc comment to list the new accepted
+  value. (The property is free-form with a `postgresql` default; there is no enum to update.)
+* **`archetype-post-generate.groovy`** — the plan ITs (Join/OrderBy/WhereClause) are deleted for any
+  `databasePlatform != 'postgresql'`, so a new **non-PostgreSQL** engine is handled with no change: it keeps the
+  catalog, JPA, and unconditional-mutation ITs (and `RepositoryWorkloadIT`, which primes the capture the mutation
+  audit needs) and drops the three plan ITs automatically.
+
+=== Step 5 — add a self-test sample
+
+The archetype's own build generates and runs a sample per engine. Mirror the MySQL sample at
+`archetype/src/test/resources/projects/full-mysql/`: create `projects/full-newengine/` with an
+`archetype.properties` (set `databasePlatform=newengine`, and `databaseImage` to pin a tag) and a `goal.txt`
+containing `verify`. This runs the generated harness against a Testcontainers instance of the engine on every
+build — the real end-to-end proof.
+
+*Important:* `archetype.properties` in a self-test sample must list **every** property the templates reference —
+the integration-test mojo does not apply the metadata defaults the way `archetype:generate` does. Copy the full
+list from `full-mysql/archetype.properties`.
+
+=== Step 6 — document it
+
+Add the engine to the `databasePlatform` row of the link:archetype.html[Archetype] page's property table (and its
+per-platform image default and any schema caveat).
+
+== Checklist
+
+* [ ] Core supports the engine (its own guide) — the integration then audits it with no change.
+* [ ] `pom.xml` branch: Testcontainers module + JDBC driver.
+* [ ] `DemoDatabaseTestConfig.java` branches: image default, container import, container field + `start()`.
+* [ ] `application.properties`: schema remap and bookkeeping-table casing cover the engine.
+* [ ] `archetype-metadata.xml` doc comment lists the new value; post-generate plan-IT deletion verified.
+* [ ] `projects/full-newengine/` self-test sample (`archetype.properties` with the full property list + `goal.txt`).
+* [ ] link:archetype.html[Archetype] property table updated; `.\mvnw.cmd clean install` green (Docker required).
