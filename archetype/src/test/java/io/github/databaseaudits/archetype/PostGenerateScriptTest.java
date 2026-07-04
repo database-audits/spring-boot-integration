@@ -28,6 +28,14 @@ class PostGenerateScriptTest {
 
     private static final String PACKAGE = "com.example.demo";
     private static final String PACKAGE_PATH = "com/example/demo";
+    private static final String ARTIFACT_ID = "demo";
+    private static final String SRC_TEST_JAVA = "src/test/java/";
+    private static final String DS_NAME = "Reporting";
+    private static final String DS_BEAN = "reportingDataSource";
+    private static final String EMF_BEAN = "reportingEntityManagerFactory";
+    private static final String CAPTURER_BEAN = "reportingSqlCapturer";
+    private static final String REPORTING_CONFIG = "DatabaseAuditReportingTestConfiguration";
+    private static final String TOKEN_CONFIG = "DatabaseAuditDsNameTokenTestConfiguration";
 
     @TempDir
     Path tempDir;
@@ -39,27 +47,27 @@ class PostGenerateScriptTest {
         Path projectDir = tempDir.resolve("project");
         Files.createDirectories(projectDir);
 
-        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
+        setupGeneratedProject(outputDir, ARTIFACT_ID, PACKAGE_PATH);
 
-        runPostGenerateScript(outputDir, "demo", "tests-only", "none",
+        runPostGenerateScript(outputDir, ARTIFACT_ID, "tests-only", "none",
                 projectDir.toAbsolutePath().toString(), null);
 
-        assertThat(projectDir.resolve("src/test/java/" + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
+        assertThat(projectDir.resolve(SRC_TEST_JAVA + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
                 .as("Audit IT file should be copied to the project directory.")
                 .exists();
         assertThat(projectDir.resolve("src/test/resources/junit-platform.properties"))
                 .as("junit-platform.properties should be copied to the project directory.")
                 .exists();
-        assertThat(projectDir.resolve("src/test/java/" + PACKAGE_PATH + "/DemoApplication.java"))
+        assertThat(projectDir.resolve(SRC_TEST_JAVA + PACKAGE_PATH + "/DemoApplication.java"))
                 .as("DemoApplication.java should not be in the project directory.")
                 .doesNotExist();
-        assertThat(projectDir.resolve("src/test/java/" + PACKAGE_PATH + "/app"))
+        assertThat(projectDir.resolve(SRC_TEST_JAVA + PACKAGE_PATH + "/app"))
                 .as("app/ directory should not be in the project directory.")
                 .doesNotExist();
-        assertThat(projectDir.resolve("src/test/java/" + PACKAGE_PATH + "/runtime/RepositoryWorkloadIT.java"))
+        assertThat(projectDir.resolve(SRC_TEST_JAVA + PACKAGE_PATH + "/runtime/RepositoryWorkloadIT.java"))
                 .as("RepositoryWorkloadIT.java should not be in the project directory in tests-only mode.")
                 .doesNotExist();
-        assertThat(outputDir.resolve("demo").toFile())
+        assertThat(outputDir.resolve(ARTIFACT_ID).toFile())
                 .as("Generated project directory should be cleaned up after tests-only generation.")
                 .doesNotExist();
     }
@@ -72,13 +80,13 @@ class PostGenerateScriptTest {
         Files.createDirectories(workingDir);
         String relativeProjectDir = "nested/project";
 
-        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
+        setupGeneratedProject(outputDir, ARTIFACT_ID, PACKAGE_PATH);
 
-        runPostGenerateScript(outputDir, "demo", "tests-only", "none", relativeProjectDir,
+        runPostGenerateScript(outputDir, ARTIFACT_ID, "tests-only", "none", relativeProjectDir,
                 workingDir.toAbsolutePath().toString());
 
         assertThat(workingDir.resolve(relativeProjectDir)
-                .resolve("src/test/java/" + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
+                .resolve(SRC_TEST_JAVA + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
                 .as("A relative projectDirectory must resolve against the working directory (PWD).")
                 .exists();
     }
@@ -88,14 +96,14 @@ class PostGenerateScriptTest {
             throws Exception {
         Path outputDir = tempDir.resolve("output");
 
-        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
+        setupGeneratedProject(outputDir, ARTIFACT_ID, PACKAGE_PATH);
 
-        runPostGenerateScript(outputDir, "demo", "tests-only", "none", null, null);
+        runPostGenerateScript(outputDir, ARTIFACT_ID, "tests-only", "none", null, null);
 
-        assertThat(outputDir.resolve("src/test/java/" + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
+        assertThat(outputDir.resolve(SRC_TEST_JAVA + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
                 .as("When projectDirectory is absent the files should land in the outputDirectory.")
                 .exists();
-        assertThat(outputDir.resolve("demo").toFile())
+        assertThat(outputDir.resolve(ARTIFACT_ID).toFile())
                 .as("Generated project directory should be deleted when using outputDirectory as destination.")
                 .doesNotExist();
     }
@@ -107,15 +115,15 @@ class PostGenerateScriptTest {
         Path projectDir = tempDir.resolve("project");
         Files.createDirectories(projectDir);
 
-        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
+        setupGeneratedProject(outputDir, ARTIFACT_ID, PACKAGE_PATH);
 
-        runPostGenerateScript(outputDir, "demo", "tests-only", "some.ParentClass",
+        runPostGenerateScript(outputDir, ARTIFACT_ID, "tests-only", "some.ParentClass",
                 projectDir.toAbsolutePath().toString(), null);
 
-        assertThat(projectDir.resolve("src/test/java/" + PACKAGE_PATH + "/AbstractDatabaseAuditIT.java"))
+        assertThat(projectDir.resolve(SRC_TEST_JAVA + PACKAGE_PATH + "/AbstractDatabaseAuditIT.java"))
                 .as("AbstractDatabaseAuditIT.java must be deleted when a parentClass is specified.")
                 .doesNotExist();
-        assertThat(projectDir.resolve("src/test/java/" + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
+        assertThat(projectDir.resolve(SRC_TEST_JAVA + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
                 .as("Other audit IT files should still be copied when a parentClass is specified.")
                 .exists();
     }
@@ -134,12 +142,12 @@ class PostGenerateScriptTest {
         Path workingDir = tempDir.resolve("project");
         Files.createDirectories(workingDir);
 
-        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
+        setupGeneratedProject(outputDir, ARTIFACT_ID, PACKAGE_PATH);
 
-        runPostGenerateScriptWithSystemProjectDirectory(outputDir, "demo", "tests-only", "none",
+        runPostGenerateScriptWithSystemProjectDirectory(outputDir, ARTIFACT_ID, "tests-only", "none",
                 ".", workingDir.toAbsolutePath().toString());
 
-        assertThat(workingDir.resolve("src/test/java/" + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
+        assertThat(workingDir.resolve(SRC_TEST_JAVA + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
                 .as("projectDirectory='.' from a system property must resolve against PWD and land in the working directory.")
                 .exists();
         assertThat(workingDir.resolve("src/test/resources/junit-platform.properties"))
@@ -148,7 +156,7 @@ class PostGenerateScriptTest {
         assertThat(outputDir.resolve("src").toFile())
                 .as("Files must not be left behind in the scratch outputDirectory.")
                 .doesNotExist();
-        assertThat(outputDir.resolve("demo").toFile())
+        assertThat(outputDir.resolve(ARTIFACT_ID).toFile())
                 .as("Generated project directory should be cleaned up after tests-only generation.")
                 .doesNotExist();
     }
@@ -160,12 +168,12 @@ class PostGenerateScriptTest {
         Path projectDir = tempDir.resolve("project");
         Files.createDirectories(projectDir);
 
-        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
+        setupGeneratedProject(outputDir, ARTIFACT_ID, PACKAGE_PATH);
 
-        runPostGenerateScriptWithSystemProjectDirectory(outputDir, "demo", "tests-only", "none",
+        runPostGenerateScriptWithSystemProjectDirectory(outputDir, ARTIFACT_ID, "tests-only", "none",
                 projectDir.toAbsolutePath().toString(), null);
 
-        assertThat(projectDir.resolve("src/test/java/" + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
+        assertThat(projectDir.resolve(SRC_TEST_JAVA + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
                 .as("An absolute projectDirectory from a system property must be used as-is.")
                 .exists();
         assertThat(outputDir.resolve("src").toFile())
@@ -177,16 +185,16 @@ class PostGenerateScriptTest {
     void testPostGenerate_ProjectModeWithoutDataSourceName_DeletesTokenTemplate()
             throws Exception {
         Path outputDir = tempDir.resolve("output");
-        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
-        setupTokenTemplate(outputDir, "demo", PACKAGE_PATH);
+        setupGeneratedProject(outputDir, ARTIFACT_ID, PACKAGE_PATH);
+        setupTokenTemplate(outputDir, ARTIFACT_ID, PACKAGE_PATH);
 
-        runPostGenerateScriptInProjectMode(outputDir, "demo", null, null, null);
+        runPostGenerateScriptInProjectMode(outputDir, ARTIFACT_ID, null, null, null);
 
         assertThat(outputDir.resolve(
-                "demo/src/test/java/" + PACKAGE_PATH + "/DatabaseAuditDsNameTokenTestConfiguration.java").toFile())
+                ARTIFACT_ID + "/" + SRC_TEST_JAVA + PACKAGE_PATH + "/" + TOKEN_CONFIG + ".java").toFile())
                 .as("The token config template must be deleted when dataSourceName is 'none'.")
                 .doesNotExist();
-        assertThat(outputDir.resolve("demo/src/test/java/" + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
+        assertThat(outputDir.resolve(ARTIFACT_ID + "/" + SRC_TEST_JAVA + PACKAGE_PATH + "/catalog/ForeignKeyIndexAuditIT.java"))
                 .as("Audit IT files are kept in project mode.")
                 .exists();
     }
@@ -195,20 +203,20 @@ class PostGenerateScriptTest {
     void testPostGenerate_ProjectModeWithDataSourceName_GeneratesNamedConfig()
             throws Exception {
         Path outputDir = tempDir.resolve("output");
-        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
-        setupTokenTemplate(outputDir, "demo", PACKAGE_PATH);
+        setupGeneratedProject(outputDir, ARTIFACT_ID, PACKAGE_PATH);
+        setupTokenTemplate(outputDir, ARTIFACT_ID, PACKAGE_PATH);
 
-        runPostGenerateScriptInProjectMode(outputDir, "demo", "Reporting", "reportingDataSource",
-                "reportingEntityManagerFactory");
+        runPostGenerateScriptInProjectMode(outputDir, ARTIFACT_ID, DS_NAME, DS_BEAN,
+                EMF_BEAN);
 
-        Path pkg = outputDir.resolve("demo/src/test/java/" + PACKAGE_PATH);
-        assertThat(pkg.resolve("DatabaseAuditReportingTestConfiguration.java"))
+        Path pkg = outputDir.resolve(ARTIFACT_ID + "/" + SRC_TEST_JAVA + PACKAGE_PATH);
+        assertThat(pkg.resolve(REPORTING_CONFIG + ".java"))
                 .as("A config class is generated, named for the datasource.").exists();
-        assertThat(pkg.resolve("DatabaseAuditDsNameTokenTestConfiguration.java").toFile())
+        assertThat(pkg.resolve(TOKEN_CONFIG + ".java").toFile())
                 .as("The token template is removed after generation.").doesNotExist();
-        assertThat(Files.readString(pkg.resolve("DatabaseAuditReportingTestConfiguration.java")))
+        assertThat(Files.readString(pkg.resolve(REPORTING_CONFIG + ".java")))
                 .as("Tokens are replaced with the datasource name throughout.")
-                .contains("class DatabaseAuditReportingTestConfiguration", "reportingSqlCapturer")
+                .contains("class " + REPORTING_CONFIG, CAPTURER_BEAN)
                 .doesNotContain("DsNameToken", "dsNameToken");
         assertThat(pkg.resolve("DatabaseAuditMultiTestConfiguration.java").toFile())
                 .as("No aggregator is generated in single-target mode.").doesNotExist();
@@ -221,22 +229,22 @@ class PostGenerateScriptTest {
         Path projectDir = tempDir.resolve("project");
         Files.createDirectories(projectDir);
 
-        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
-        setupTokenTemplate(outputDir, "demo", PACKAGE_PATH);
+        setupGeneratedProject(outputDir, ARTIFACT_ID, PACKAGE_PATH);
+        setupTokenTemplate(outputDir, ARTIFACT_ID, PACKAGE_PATH);
 
-        runPostGenerateScriptInTestsOnlyMode(outputDir, "demo", projectDir.toAbsolutePath().toString(),
-                "Reporting", "reportingDataSource", "reportingEntityManagerFactory");
+        runPostGenerateScriptInTestsOnlyMode(outputDir, ARTIFACT_ID, projectDir.toAbsolutePath().toString(),
+                DS_NAME, DS_BEAN, EMF_BEAN);
 
-        Path pkg = projectDir.resolve("src/test/java/" + PACKAGE_PATH);
-        assertThat(pkg.resolve("DatabaseAuditReportingTestConfiguration.java"))
+        Path pkg = projectDir.resolve(SRC_TEST_JAVA + PACKAGE_PATH);
+        assertThat(pkg.resolve(REPORTING_CONFIG + ".java"))
                 .as("The named config is generated in the project directory in tests-only mode.").exists();
-        assertThat(pkg.resolve("DatabaseAuditDsNameTokenTestConfiguration.java").toFile())
+        assertThat(pkg.resolve(TOKEN_CONFIG + ".java").toFile())
                 .as("The token template is removed after tests-only generation.").doesNotExist();
-        assertThat(Files.readString(pkg.resolve("DatabaseAuditReportingTestConfiguration.java")))
+        assertThat(Files.readString(pkg.resolve(REPORTING_CONFIG + ".java")))
                 .as("Tokens are replaced with the datasource name throughout the relocated config.")
-                .contains("class DatabaseAuditReportingTestConfiguration", "reportingSqlCapturer")
+                .contains("class " + REPORTING_CONFIG, CAPTURER_BEAN)
                 .doesNotContain("DsNameToken", "dsNameToken");
-        assertThat(outputDir.resolve("demo").toFile())
+        assertThat(outputDir.resolve(ARTIFACT_ID).toFile())
                 .as("The generated project directory is cleaned up after tests-only generation.")
                 .doesNotExist();
     }
@@ -245,10 +253,10 @@ class PostGenerateScriptTest {
     void testPostGenerate_ProjectModeWithInvalidDataSourceName_FailsWithClearError()
             throws Exception {
         Path outputDir = tempDir.resolve("output");
-        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
-        setupTokenTemplate(outputDir, "demo", PACKAGE_PATH);
+        setupGeneratedProject(outputDir, ARTIFACT_ID, PACKAGE_PATH);
+        setupTokenTemplate(outputDir, ARTIFACT_ID, PACKAGE_PATH);
 
-        assertThatThrownBy(() -> runPostGenerateScriptInProjectMode(outputDir, "demo",
+        assertThatThrownBy(() -> runPostGenerateScriptInProjectMode(outputDir, ARTIFACT_ID,
                 "read-replica", "x", "y"))
                 .as("A datasource name that is not a valid Java identifier must fail generation, "
                         + "not emit an uncompilable class.")
@@ -259,10 +267,10 @@ class PostGenerateScriptTest {
     void testPostGenerate_DataSourceNameWithoutBeanNames_FailsWithClearError()
             throws Exception {
         Path outputDir = tempDir.resolve("output");
-        setupGeneratedProject(outputDir, "demo", PACKAGE_PATH);
-        setupTokenTemplate(outputDir, "demo", PACKAGE_PATH);
+        setupGeneratedProject(outputDir, ARTIFACT_ID, PACKAGE_PATH);
+        setupTokenTemplate(outputDir, ARTIFACT_ID, PACKAGE_PATH);
 
-        assertThatThrownBy(() -> runPostGenerateScriptInProjectMode(outputDir, "demo", "Reporting", null, null))
+        assertThatThrownBy(() -> runPostGenerateScriptInProjectMode(outputDir, ARTIFACT_ID, DS_NAME, null, null))
                 .as("A dataSourceName without the bean-name properties must fail generation.")
                 .hasMessageContaining("dataSourceBeanName");
     }
@@ -272,15 +280,15 @@ class PostGenerateScriptTest {
         Path projectDir = outputDir.resolve(artifactId);
 
         // Demo harness files — deleted by post-generate in tests-only mode
-        Path demoApp = projectDir.resolve("src/test/java/" + packagePath + "/DemoApplication.java");
+        Path demoApp = projectDir.resolve(SRC_TEST_JAVA + packagePath + "/DemoApplication.java");
         Files.createDirectories(demoApp.getParent());
         Files.writeString(demoApp, "class DemoApplication {}");
 
-        Path appDir = projectDir.resolve("src/test/java/" + packagePath + "/app");
+        Path appDir = projectDir.resolve(SRC_TEST_JAVA + packagePath + "/app");
         Files.createDirectories(appDir);
         Files.writeString(appDir.resolve("SomeEntity.java"), "class SomeEntity {}");
 
-        Path runtimeDir = projectDir.resolve("src/test/java/" + packagePath + "/runtime");
+        Path runtimeDir = projectDir.resolve(SRC_TEST_JAVA + packagePath + "/runtime");
         Files.createDirectories(runtimeDir);
         Files.writeString(runtimeDir.resolve("RepositoryWorkloadIT.java"), "class RepositoryWorkloadIT {}");
 
@@ -292,11 +300,11 @@ class PostGenerateScriptTest {
         Files.writeString(dbDir.resolve("master.xml"), "<databaseChangelog/>");
 
         // Audit IT files — kept and copied by post-generate
-        Path catalogDir = projectDir.resolve("src/test/java/" + packagePath + "/catalog");
+        Path catalogDir = projectDir.resolve(SRC_TEST_JAVA + packagePath + "/catalog");
         Files.createDirectories(catalogDir);
         Files.writeString(catalogDir.resolve("ForeignKeyIndexAuditIT.java"), "class ForeignKeyIndexAuditIT {}");
 
-        Path baseClass = projectDir.resolve("src/test/java/" + packagePath + "/AbstractDatabaseAuditIT.java");
+        Path baseClass = projectDir.resolve(SRC_TEST_JAVA + packagePath + "/AbstractDatabaseAuditIT.java");
         Files.writeString(baseClass, "class AbstractDatabaseAuditIT {}");
 
         Files.writeString(resourcesDir.resolve("junit-platform.properties"), "# junit");
@@ -344,10 +352,10 @@ class PostGenerateScriptTest {
 
     private void setupTokenTemplate(Path outputDir, String artifactId, String packagePath)
             throws IOException {
-        Path pkgDir = outputDir.resolve(artifactId).resolve("src/test/java/" + packagePath);
+        Path pkgDir = outputDir.resolve(artifactId).resolve(SRC_TEST_JAVA + packagePath);
         Files.createDirectories(pkgDir);
-        Files.writeString(pkgDir.resolve("DatabaseAuditDsNameTokenTestConfiguration.java"),
-                "class DatabaseAuditDsNameTokenTestConfiguration { String cap = \"dsNameTokenSqlCapturer\"; }");
+        Files.writeString(pkgDir.resolve(TOKEN_CONFIG + ".java"),
+                "class " + TOKEN_CONFIG + " { String cap = \"dsNameTokenSqlCapturer\"; }");
     }
 
     /**
