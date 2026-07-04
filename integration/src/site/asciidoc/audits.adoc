@@ -1,8 +1,5 @@
 = Audits
 
-Ten audits organized into three families. Catalog and JPA audits run on every supported database platform;
-runtime audits are PostgreSQL-only.
-
 For a full description of what each audit detects, finding format, and exclusion types, see the
 link:https://database-audits.github.io/core/audits.html[core audit reference].
 
