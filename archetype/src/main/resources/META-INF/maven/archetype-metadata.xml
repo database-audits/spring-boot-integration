@@ -51,6 +51,22 @@
     <requiredProperty key="disabledTests">
       <defaultValue>false</defaultValue>
     </requiredProperty>
+    <!-- The consolidated audit report's format, written by the auto-registered report listener when a run has
+         findings: asciidoc (default), markdown, or text. Seeded into the generated junit-platform.properties as
+         database-audits.report.format. -->
+    <requiredProperty key="reportFormat">
+      <defaultValue>asciidoc</defaultValue>
+    </requiredProperty>
+    <!-- The remediation the report emits for each finding: liquibase-xml (default; a databaseChangeLog fragment),
+         sql (raw DDL), or none (findings only). Seeded as database-audits.report.fix-format. -->
+    <requiredProperty key="fixFormat">
+      <defaultValue>liquibase-xml</defaultValue>
+    </requiredProperty>
+    <!-- Where the report places each audit's fixes: both (default; inline under each audit and in a consolidated
+         section), inline, or section. Seeded as database-audits.report.fix-placement. -->
+    <requiredProperty key="fixPlacement">
+      <defaultValue>both</defaultValue>
+    </requiredProperty>
     <!-- The datasource to audit when the application configures several peer datasources with no @Primary.
          When set (not 'none'), the post-generate script expands the token config template into a
          DatabaseAudit<Name>TestConfiguration that resolves this datasource's beans by @Qualifier, and each audit IT

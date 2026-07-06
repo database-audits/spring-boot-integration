@@ -112,6 +112,9 @@ if (dataSourceName && dataSourceName != 'none') {
 // longer carry @Import themselves; the config is imported once on the base class (generated or user-specified).
 def schemaProp = request.properties.getProperty('schemaPropertyName', 'database.datasource.schema-name')
 def site = 'https://database-audits.github.io/spring-boot-integration'
+def reportFormat = request.properties.getProperty('reportFormat', 'asciidoc')
+def fixFormat = request.properties.getProperty('fixFormat', 'liquibase-xml')
+def reportExt = ['markdown': 'md', 'asciidoc': 'adoc', 'text': 'txt'].getOrDefault(reportFormat, 'adoc')
 println ''
 println '=================================================================================='
 println ' database-audits: generation complete. Remaining manual steps:'
@@ -136,4 +139,11 @@ if (dataSourceName && dataSourceName != 'none') {
     println " * Guide: ${site}/usage.html"
 }
 println " * Ensure ${schemaProp} is set to the schema the catalog audits scan."
+if (fixFormat != 'none') {
+    println " * When a run has findings, a consolidated report (with ${fixFormat} fix suggestions) is written to"
+    println "   target/database-audit-report.${reportExt}; tune database-audits.report.* in junit-platform.properties."
+} else {
+    println " * When a run has findings, a consolidated report is written to target/database-audit-report.${reportExt};"
+    println "   set database-audits.report.fix-format=sql|liquibase-xml in junit-platform.properties to also emit fixes."
+}
 println '=================================================================================='
