@@ -3,6 +3,7 @@ package io.github.databaseaudits.spring.boot.assertion;
 import java.util.Set;
 
 import io.github.databaseaudits.audit.catalog.RedundantIndexAudit;
+import io.github.databaseaudits.platform.DatabasePlatform;
 
 /**
  * Asserts that the schema has no redundant indexes (or only excluded ones),
@@ -19,8 +20,13 @@ public class RedundantIndexAuditAssertion extends AbstractAuditAssertion {
      *
      * @param audit
      *                  the underlying audit.
+     * @param platform
+     *                  the database platform the audit runs against, stamped on
+     *                  any raised failure for the fix renderer.
      */
-    public RedundantIndexAuditAssertion(final RedundantIndexAudit audit) {
+    public RedundantIndexAuditAssertion(final RedundantIndexAudit audit,
+            final DatabasePlatform platform) {
+        super(platform);
         this.audit = audit;
     }
 

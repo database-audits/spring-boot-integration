@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Set;
 
 import io.github.databaseaudits.audit.runtime.plan.OrderByIndexAudit;
+import io.github.databaseaudits.platform.DatabasePlatform;
 
 /**
  * Asserts that every captured ORDER BY is served by an index, not an explicit
@@ -22,8 +23,13 @@ public class OrderByIndexAuditAssertion extends AbstractAuditAssertion {
      *
      * @param audit
      *                  the underlying audit.
+     * @param platform
+     *                  the database platform the audit runs against, stamped on
+     *                  any raised failure for the fix renderer.
      */
-    public OrderByIndexAuditAssertion(final OrderByIndexAudit audit) {
+    public OrderByIndexAuditAssertion(final OrderByIndexAudit audit,
+            final DatabasePlatform platform) {
+        super(platform);
         this.audit = audit;
     }
 

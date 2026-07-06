@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import io.github.databaseaudits.audit.catalog.PrimaryKeyPresenceAudit;
+import io.github.databaseaudits.platform.DatabasePlatform;
 
 /**
  * Asserts that every base table has a primary key (or is excluded), using
@@ -21,9 +22,14 @@ public class PrimaryKeyPresenceAuditAssertion extends AbstractAuditAssertion {
      *
      * @param audit
      *                  the underlying audit.
+     * @param platform
+     *                  the database platform the audit runs against, stamped on
+     *                  any raised failure for the fix renderer.
      */
     public PrimaryKeyPresenceAuditAssertion(
-            final PrimaryKeyPresenceAudit audit) {
+            final PrimaryKeyPresenceAudit audit,
+            final DatabasePlatform platform) {
+        super(platform);
         this.audit = audit;
     }
 

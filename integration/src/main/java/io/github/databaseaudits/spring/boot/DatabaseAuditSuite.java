@@ -105,18 +105,22 @@ public class DatabaseAuditSuite {
         // (catalog, JPA, runtime); everything else drives it through all().
         final List<AuditAssertion> roster = new ArrayList<>(List.of(
                 new ForeignKeyIndexAuditAssertion(new ForeignKeyIndexAudit(
-                        catalogQueries, indexCatalog, platform)),
+                        catalogQueries, indexCatalog, platform), platform),
                 new ForeignKeyNotNullAuditAssertion(
-                        new ForeignKeyNotNullAudit(catalogQueries, platform)),
+                        new ForeignKeyNotNullAudit(catalogQueries, platform),
+                        platform),
                 new ForeignKeyTypeMatchAuditAssertion(
-                        new ForeignKeyTypeMatchAudit(catalogQueries, platform)),
+                        new ForeignKeyTypeMatchAudit(catalogQueries, platform),
+                        platform),
                 new PrimaryKeyPresenceAuditAssertion(
-                        new PrimaryKeyPresenceAudit(catalogQueries, platform)),
+                        new PrimaryKeyPresenceAudit(catalogQueries, platform),
+                        platform),
                 new RedundantIndexAuditAssertion(
-                        new RedundantIndexAudit(indexCatalog)),
+                        new RedundantIndexAudit(indexCatalog), platform),
                 new SchemaEntityValidationAuditAssertion(
                         SchemaEntityValidationAudit.forEntityManagerFactory(
-                                entityManagerFactory, dataSource))));
+                                entityManagerFactory, dataSource),
+                        platform)));
 
         // The plan-based runtime audits (Join/OrderBy/WhereClause) are
         // PostgreSQL-only — they fail fast on every other platform — so they are
@@ -127,14 +131,17 @@ public class DatabaseAuditSuite {
             final QueryPlanExplainer queryPlanExplainer =
                     new QueryPlanExplainer(dataSource, platform);
             roster.add(new JoinIndexAuditAssertion(
-                    new JoinIndexAudit(queryPlanExplainer, sqlCapturer)));
+                    new JoinIndexAudit(queryPlanExplainer, sqlCapturer),
+                    platform));
             roster.add(new OrderByIndexAuditAssertion(
-                    new OrderByIndexAudit(queryPlanExplainer, sqlCapturer)));
+                    new OrderByIndexAudit(queryPlanExplainer, sqlCapturer),
+                    platform));
             roster.add(new WhereClauseIndexAuditAssertion(
-                    new WhereClauseIndexAudit(queryPlanExplainer, sqlCapturer)));
+                    new WhereClauseIndexAudit(queryPlanExplainer, sqlCapturer),
+                    platform));
         }
         roster.add(new UnconditionalMutationAuditAssertion(
-                new UnconditionalMutationAudit(sqlCapturer)));
+                new UnconditionalMutationAudit(sqlCapturer), platform));
 
         this.all = List.copyOf(roster);
         this.assertions = new DatabaseAuditAssertions(all);

@@ -3,6 +3,7 @@ package io.github.databaseaudits.spring.boot.assertion;
 import java.util.Set;
 
 import io.github.databaseaudits.audit.catalog.ForeignKeyNotNullAudit;
+import io.github.databaseaudits.platform.DatabasePlatform;
 
 /**
  * Asserts that every foreign key column is NOT NULL (or excluded), using
@@ -20,8 +21,13 @@ public class ForeignKeyNotNullAuditAssertion extends AbstractAuditAssertion {
      *
      * @param audit
      *                  the underlying audit.
+     * @param platform
+     *                  the database platform the audit runs against, stamped on
+     *                  any raised failure for the fix renderer.
      */
-    public ForeignKeyNotNullAuditAssertion(final ForeignKeyNotNullAudit audit) {
+    public ForeignKeyNotNullAuditAssertion(final ForeignKeyNotNullAudit audit,
+            final DatabasePlatform platform) {
+        super(platform);
         this.audit = audit;
     }
 
