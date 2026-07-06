@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Set;
 
 import io.github.databaseaudits.audit.runtime.plan.WhereClauseIndexAudit;
+import io.github.databaseaudits.platform.DatabasePlatform;
 
 /**
  * Asserts that every captured WHERE-clause access is index-satisfiable (or is
@@ -22,8 +23,13 @@ public class WhereClauseIndexAuditAssertion extends AbstractAuditAssertion {
      *
      * @param audit
      *                  the underlying audit.
+     * @param platform
+     *                  the database platform the audit runs against, stamped on
+     *                  any raised failure for the fix renderer.
      */
-    public WhereClauseIndexAuditAssertion(final WhereClauseIndexAudit audit) {
+    public WhereClauseIndexAuditAssertion(final WhereClauseIndexAudit audit,
+            final DatabasePlatform platform) {
+        super(platform);
         this.audit = audit;
     }
 

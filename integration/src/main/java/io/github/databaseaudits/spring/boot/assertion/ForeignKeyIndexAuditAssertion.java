@@ -3,6 +3,7 @@ package io.github.databaseaudits.spring.boot.assertion;
 import java.util.Set;
 
 import io.github.databaseaudits.audit.catalog.ForeignKeyIndexAudit;
+import io.github.databaseaudits.platform.DatabasePlatform;
 
 /**
  * Asserts that every foreign key has a supporting index, using
@@ -19,8 +20,13 @@ public class ForeignKeyIndexAuditAssertion extends AbstractAuditAssertion {
      *
      * @param audit
      *                  the underlying audit.
+     * @param platform
+     *                  the database platform the audit runs against, stamped on
+     *                  any raised failure for the fix renderer.
      */
-    public ForeignKeyIndexAuditAssertion(final ForeignKeyIndexAudit audit) {
+    public ForeignKeyIndexAuditAssertion(final ForeignKeyIndexAudit audit,
+            final DatabasePlatform platform) {
+        super(platform);
         this.audit = audit;
     }
 

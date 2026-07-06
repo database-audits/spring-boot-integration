@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Set;
 
 import io.github.databaseaudits.audit.runtime.plan.JoinIndexAudit;
+import io.github.databaseaudits.platform.DatabasePlatform;
 
 /**
  * Asserts that every captured join key is served by an index (or is excluded),
@@ -23,8 +24,13 @@ public class JoinIndexAuditAssertion extends AbstractAuditAssertion {
      *
      * @param audit
      *                  the underlying audit.
+     * @param platform
+     *                  the database platform the audit runs against, stamped on
+     *                  any raised failure for the fix renderer.
      */
-    public JoinIndexAuditAssertion(final JoinIndexAudit audit) {
+    public JoinIndexAuditAssertion(final JoinIndexAudit audit,
+            final DatabasePlatform platform) {
+        super(platform);
         this.audit = audit;
     }
 

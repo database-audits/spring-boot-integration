@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Set;
 
 import io.github.databaseaudits.audit.jpa.SchemaEntityValidationAudit;
+import io.github.databaseaudits.platform.DatabasePlatform;
 
 /**
  * Asserts that the JPA entity mappings match the schema, using
@@ -22,9 +23,14 @@ public class SchemaEntityValidationAuditAssertion
      *
      * @param audit
      *                  the underlying audit.
+     * @param platform
+     *                  the database platform the audit runs against, stamped on
+     *                  any raised failure for the fix renderer.
      */
     public SchemaEntityValidationAuditAssertion(
-            final SchemaEntityValidationAudit audit) {
+            final SchemaEntityValidationAudit audit,
+            final DatabasePlatform platform) {
+        super(platform);
         this.audit = audit;
     }
 

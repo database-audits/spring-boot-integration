@@ -3,6 +3,7 @@ package io.github.databaseaudits.spring.boot.assertion;
 import java.util.Set;
 
 import io.github.databaseaudits.audit.catalog.ForeignKeyTypeMatchAudit;
+import io.github.databaseaudits.platform.DatabasePlatform;
 
 /**
  * Asserts that every foreign key column's type matches its referenced column
@@ -20,9 +21,14 @@ public class ForeignKeyTypeMatchAuditAssertion extends AbstractAuditAssertion {
      *
      * @param audit
      *                  the underlying audit.
+     * @param platform
+     *                  the database platform the audit runs against, stamped on
+     *                  any raised failure for the fix renderer.
      */
     public ForeignKeyTypeMatchAuditAssertion(
-            final ForeignKeyTypeMatchAudit audit) {
+            final ForeignKeyTypeMatchAudit audit,
+            final DatabasePlatform platform) {
+        super(platform);
         this.audit = audit;
     }
 

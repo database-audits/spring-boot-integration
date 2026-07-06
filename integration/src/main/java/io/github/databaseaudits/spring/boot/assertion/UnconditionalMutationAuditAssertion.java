@@ -3,6 +3,7 @@ package io.github.databaseaudits.spring.boot.assertion;
 import java.util.Set;
 
 import io.github.databaseaudits.audit.runtime.UnconditionalMutationAudit;
+import io.github.databaseaudits.platform.DatabasePlatform;
 
 /**
  * Asserts that no captured statement is a full-table UPDATE/DELETE (or is
@@ -21,9 +22,14 @@ public class UnconditionalMutationAuditAssertion
      *
      * @param audit
      *                  the underlying audit.
+     * @param platform
+     *                  the database platform the audit runs against, stamped on
+     *                  any raised failure for the fix renderer.
      */
     public UnconditionalMutationAuditAssertion(
-            final UnconditionalMutationAudit audit) {
+            final UnconditionalMutationAudit audit,
+            final DatabasePlatform platform) {
+        super(platform);
         this.audit = audit;
     }
 
