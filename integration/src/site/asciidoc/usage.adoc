@@ -375,3 +375,85 @@ schemas are handled naturally.
   *before Hibernate builds it* — so your own (production) datasource configuration is untouched. Also connect that
   datasource with `preferQueryMode=simple` (see <<postgresql-jdbc-requirement>>); otherwise run only the catalog and
   JPA audits against that datasource.
+
+== Consolidated findings report
+
+Every audit failure is also collected into a single report file, written automatically at the end of the test run
+by a JUnit `TestExecutionListener` shipped in the integration jar and auto-registered via `META-INF/services` — no
+setup and no console scraping. The listener is *inert when the run is clean*: it writes nothing unless there are
+findings, so unrelated test runs are unaffected.
+
+The report groups findings by audit family and audit, reproducing each finding's message, and can additionally emit
+a remediation for each finding — raw SQL DDL or a Liquibase changeset.
+
+[NOTE]
+====
+The report is populated from *per-audit* assertion failures — the per-audit ITs the archetype generates, or any
+test that calls an individual `*AuditAssertion` bean. The `DatabaseAuditAssertions` facade
+(`assertAllClean` / `assertCatalogClean` / …) aggregates its failures into one combined `AssertionError`, which the
+report does not itemize; prefer the per-audit assertions when you want the consolidated report.
+====
+
+=== Configuration
+
+Set these JUnit Platform configuration parameters in `src/test/resources/junit-platform.properties` (each is also
+honored as a same-named system property):
+
+|===
+| Key | Default | Description
+
+| `database-audits.report.enabled`
+| `true`
+| Master switch. `false` disables the report entirely.
+
+| `database-audits.report.format`
+| `asciidoc`
+| Report format: `asciidoc`, `markdown`, or `text`.
+
+| `database-audits.report.fix-format`
+| `liquibase-xml`
+| Per-finding remediation: `liquibase-xml` (a `databaseChangeLog` fragment), `sql` (raw DDL), or `none` (findings only).
+
+| `database-audits.report.fix-placement`
+| `both`
+| Where fixes appear: `both` (default — inline under each audit and in a consolidated section), `inline` (only under each audit), or `section` (only the consolidated block).
+
+| `database-audits.report.output-file`
+| `target/database-audit-report.<ext>`
+| Where the report is written; the default extension follows the format (`md` / `adoc` / `txt`).
+|===
+
+[source,properties]
+----
+# src/test/resources/junit-platform.properties
+database-audits.report.format=asciidoc
+database-audits.report.fix-format=liquibase-xml
+database-audits.report.fix-placement=both
+----
+
+=== Fix fidelity
+
+Generated fixes are labeled by how faithfully they remediate the finding, because not every finding carries enough
+information for an exact fix:
+
+* *precise* — executable, dialect-correct DDL that fully fixes the finding (e.g. `CREATE INDEX` for an unindexed
+  foreign key, `DROP INDEX` for a redundant index, `ALTER COLUMN … TYPE` for a foreign-key type mismatch).
+* *template* — DDL with a `TODO` you must complete (e.g. a missing primary key's key columns cannot be inferred from
+  the catalog).
+* *best-effort* — an index suggestion whose relation is parsed from the `EXPLAIN` plan; verify the columns.
+* *advisory* — no DDL; a full-table `UPDATE`/`DELETE` needs a `WHERE` clause in code, not a schema change.
+
+In `liquibase-xml` mode only *precise* fixes become runnable `<changeSet>` elements — built from Liquibase's
+database-agnostic change types (`<createIndex>`, `<dropIndex>`, `<modifyDataType>`, `<addColumn>`,
+`<addNotNullConstraint>`), so Liquibase renders the dialect-correct SQL for your database rather than this module
+hand-writing it. The rest are emitted as XML comments, so the embedded `databaseChangeLog` stays well-formed and
+applies cleanly. Change-set ids are derived from the finding, so regenerating over the same findings is stable.
+
+With the default `both` placement, each audit's fix is shown inline beneath its findings *and* gathered in the
+consolidated section; for `liquibase-xml` the inline blocks are `<changeSet>` fragments to read alongside the audit,
+while the consolidated section is the single, applicable `<databaseChangeLog>`. Set `fix-placement` to `inline` to
+drop the consolidated section, or `section` for the consolidated block only.
+
+The archetype seeds `database-audits.report.format`, `database-audits.report.fix-format`, and
+`database-audits.report.fix-placement` into the generated `junit-platform.properties` from its `-DreportFormat`,
+`-DfixFormat`, and `-DfixPlacement` parameters — see link:archetype.html[Archetype].

@@ -48,6 +48,9 @@ mvn archetype:generate -DinteractiveMode=false \
   -DdatabasePlatform=postgresql \
   -DdatabaseImage=none \
   -DdisabledTests=false \
+  -DreportFormat=asciidoc \
+  -DfixFormat=liquibase-xml \
+  -DfixPlacement=both \
   -DdataSourceName=none \
   -DoutputDirectory=/path/to/output
 ----
@@ -87,6 +90,9 @@ mvn archetype:generate -DinteractiveMode=false \
   -DdatabasePlatform=postgresql \
   -DdatabaseImage=none \
   -DdisabledTests=false \
+  -DreportFormat=asciidoc \
+  -DfixFormat=liquibase-xml \
+  -DfixPlacement=both \
   -DdataSourceName=none \
   -DoutputDirectory=target/audit-scratch \
   -DprojectDirectory=.
@@ -148,6 +154,21 @@ Pass only the ones that differ.
 | both
 | When `true`, annotates every generated test with JUnit's `@Disabled`, so the suite is generated and compiles but does not run. (`SchemaEntityValidationAuditIT` is annotated on the class rather than the method, so its Spring context never loads.) Useful for scaffolding the audits into a project that does not pass them yet — remove the `@Disabled` annotations to enable audits one at a time.
 
+| `reportFormat`
+| `asciidoc`
+| both
+| Format of the consolidated findings report the auto-registered listener writes when a run has findings: `asciidoc`, `markdown`, or `text`. Seeded into the generated `junit-platform.properties` as `database-audits.report.format`. See the link:usage.html#_consolidated_findings_report[Consolidated findings report] guide.
+
+| `fixFormat`
+| `liquibase-xml`
+| both
+| Per-finding remediation the report emits: `liquibase-xml` (a `databaseChangeLog` fragment), `sql` (raw DDL), or `none` (findings only). Seeded as `database-audits.report.fix-format`.
+
+| `fixPlacement`
+| `both`
+| both
+| Where the report places each audit's fixes: `both` (default — inline under each audit and in a consolidated section), `inline` (only under each audit), or `section` (only the consolidated block). Seeded as `database-audits.report.fix-placement`.
+
 | `dataSourceName`
 | `none`
 | both
@@ -203,7 +224,7 @@ Pass only the ones that differ.
     │       └── WhereClauseIndexAuditIT.java
     └── resources/
         ├── application.properties         (schema-name, ddl-auto=none, Liquibase changelog path)
-        ├── junit-platform.properties      (ClassOrderer$OrderAnnotation enabled)
+        ├── junit-platform.properties      (ClassOrderer$OrderAnnotation + database-audits.report.* keys)
         └── db/changelog/
             └── db.changelog-master.xml    (parent + child tables with indexes)
 ----
@@ -232,7 +253,7 @@ src/test/
 │       ├── UnconditionalMutationAuditIT.java
 │       └── WhereClauseIndexAuditIT.java
 └── resources/
-    └── junit-platform.properties      (ClassOrderer$OrderAnnotation enabled)
+    └── junit-platform.properties      (ClassOrderer$OrderAnnotation + database-audits.report.* keys)
 ----
 
 `RepositoryWorkloadIT` is *not* generated in this mode — your existing tests already prime the SQL

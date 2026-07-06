@@ -2,7 +2,9 @@
 
 `database-audits-spring-boot-integration` wires the link:https://database-audits.github.io/core[database-audits-core]
 audit library into a Spring Boot test context. One `@Import` enables ten database audits across three families:
-catalog (schema metadata), JPA (entity/schema agreement), and runtime (live SQL execution).
+catalog (schema metadata), JPA (entity/schema agreement), and runtime (live SQL execution). Every finding is also
+collected into a link:usage.html#_consolidated_findings_report[consolidated report] — Markdown, AsciiDoc, or text,
+with optional SQL or Liquibase fixes — written automatically at the end of the test run.
 
 == Dependency
 
