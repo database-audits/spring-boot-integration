@@ -19,7 +19,7 @@
   </description>
 
   <properties>
-    <database-audits-core.version>2.0.0</database-audits-core.version>
+    <database-audits-core.version>3.0.0</database-audits-core.version>
   </properties>
 
   <developers>
@@ -97,6 +97,13 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-test</artifactId>
+    </dependency>
+    <!-- The auto-registered report listener implements a junit-platform-launcher
+         type; provided because a consumer's test runtime already supplies it. -->
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-launcher</artifactId>
+      <scope>provided</scope>
     </dependency>
   </dependencies>
 
