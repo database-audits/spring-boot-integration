@@ -16,6 +16,9 @@
             <column name="code" type="VARCHAR(50)">
                 <constraints nullable="false"/>
             </column>
+            <column name="version" type="INT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
         <createIndex indexName="idx_parent_code" tableName="parent">
             <column name="code"/>
@@ -31,6 +34,9 @@
                 <constraints nullable="false"/>
             </column>
             <column name="parent_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="version" type="INT" defaultValueNumeric="0">
                 <constraints nullable="false"/>
             </column>
         </createTable>

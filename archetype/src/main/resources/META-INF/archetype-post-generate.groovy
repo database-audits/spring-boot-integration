@@ -64,14 +64,16 @@ if (parentClass != 'none') {
     new File(destRoot, "src/test/java/${packagePath}/AbstractDatabaseAuditIT.java").delete()
 }
 
-// The plan-based runtime audits (Join/OrderBy/WhereClause index) are PostgreSQL-only, so remove their ITs for any
-// other engine. The catalog, JPA, and unconditional-mutation audits run on every engine; RepositoryWorkloadIT stays
-// too, because the unconditional-mutation audit throws on an empty capture, so its priming workload must still run.
+// The plan-based runtime audits (Join/OrderBy/Unused/WhereClause index) are PostgreSQL-only, so remove their ITs
+// for any other engine. The catalog, JPA, and capture-scan (offset-pagination/repeated-statement/
+// unconditional-mutation) audits run on every engine; RepositoryWorkloadIT stays too, because the
+// unconditional-mutation audit throws on an empty capture, so its priming workload must still run.
 def databasePlatform = request.properties.getProperty('databasePlatform', 'postgresql')
 if (databasePlatform != 'postgresql') {
     [
         "src/test/java/${packagePath}/runtime/JoinIndexAuditIT.java",
         "src/test/java/${packagePath}/runtime/OrderByIndexAuditIT.java",
+        "src/test/java/${packagePath}/runtime/UnusedIndexAuditIT.java",
         "src/test/java/${packagePath}/runtime/WhereClauseIndexAuditIT.java"
     ].each { path ->
         new File(destRoot, path).delete()
