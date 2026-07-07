@@ -14,6 +14,14 @@ Catalog audits read database metadata (information schema / system catalogs). No
 | `PrimaryKeyPresenceAuditAssertion`
 | Table names (`Set<String>`). Liquibase bookkeeping tables are excluded automatically.
 
+| `PrimaryKeyTypeAudit`
+| `PrimaryKeyTypeAuditAssertion`
+| Column names in `table.column` format (`Set<String>`)
+
+| `DuplicateForeignKeyAudit`
+| `DuplicateForeignKeyAuditAssertion`
+| FK constraint names (`Set<String>`)
+
 | `ForeignKeyIndexAudit`
 | `ForeignKeyIndexAuditAssertion`
 | FK constraint names (`Set<String>`)
@@ -28,6 +36,10 @@ Catalog audits read database metadata (information schema / system catalogs). No
 
 | `RedundantIndexAudit`
 | `RedundantIndexAuditAssertion`
+| Index names (`Set<String>`)
+
+| `UniqueIndexNotNullAudit`
+| `UniqueIndexNotNullAuditAssertion`
 | Index names (`Set<String>`)
 |===
 
@@ -52,7 +64,7 @@ void assertForeignKeysIndexed() {
 }
 ----
 
-== JPA audit
+== JPA audits
 
 |===
 | Audit | Assertion Bean | Exclusion type
@@ -60,6 +72,18 @@ void assertForeignKeysIndexed() {
 | `SchemaEntityValidationAudit`
 | `SchemaEntityValidationAuditAssertion`
 | None. The audit walks Hibernate's entity mappings against the live schema and reports every mismatch (missing table, missing column, incompatible column type) in one run. Run under the default `ddl-auto=none`; do not set `ddl-auto=validate`, whose fail-fast startup check aborts the context on the first mismatch.
+
+| `UnmappedDatabaseObjectAudit`
+| `UnmappedDatabaseObjectAuditAssertion`
+| Relations — a table or `table.column` name, optionally schema-qualified (`Set<String>`). The reverse of `SchemaEntityValidationAudit`: proves the schema holds only what is mapped. Exclude migration-tool bookkeeping tables (e.g. `databasechangelog`, `databasechangeloglock`).
+
+| `MissingVersionAttributeAudit`
+| `MissingVersionAttributeAuditAssertion`
+| Entities — fully-qualified name, simple name, or physical table name (`Set<String>`)
+
+| `EagerCollectionFetchAudit`
+| `EagerCollectionFetchAuditAssertion`
+| Collection roles, e.g. `com.acme.Order.items` (`Set<String>`)
 |===
 
 === JPA audit example
@@ -104,12 +128,18 @@ datasource JDBC URL. See link:usage.html#postgresql-jdbc-requirement[Usage — P
 | `JoinIndexAudit`
 | `JoinIndexAuditAssertion`
 | Relation names (`Set<String>`), SQL fragments (`List<String>`)
+
+| `UnusedIndexAudit`
+| `UnusedIndexAuditAssertion`
+| Index names (`Set<String>`). Advisory and workload-dependent: the capture must hold a representative
+workload, and a generic plan can miss an index the planner would pick under production data. Always confirm
+against production `pg_stat_user_indexes` before dropping an index this reports.
 |===
 
-=== Token-scan audit (all platforms)
+=== Token-scan audits (all platforms)
 
-`UnconditionalMutationAudit` detects full-table `UPDATE`/`DELETE` via a token scan of the captured SQL — no
-`EXPLAIN` needed. It runs on every supported database platform.
+These detect via a token scan of the captured SQL — no `EXPLAIN` needed — so they run on every supported
+database platform.
 
 |===
 | Audit | Assertion Bean | Exclusion types
@@ -117,6 +147,15 @@ datasource JDBC URL. See link:usage.html#postgresql-jdbc-requirement[Usage — P
 | `UnconditionalMutationAudit`
 | `UnconditionalMutationAuditAssertion`
 | Exact statement strings (`Set<String>`)
+
+| `OffsetPaginationAudit`
+| `OffsetPaginationAuditAssertion`
+| SQL fragments (`List<String>`)
+
+| `RepeatedStatementAudit`
+| `RepeatedStatementAuditAssertion`
+| A threshold (`int`, minimum 2) plus SQL fragments (`List<String>`). Counts accumulate for the capturer's
+whole lifetime, so the threshold is a regression tripwire (a generous default like 50), not a precise N+1 count.
 |===
 
 === Runtime audit example

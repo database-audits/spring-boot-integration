@@ -71,9 +71,10 @@ audits.assertJpaClean();
 === Runtime audits
 
 Runtime audits intercept every SQL statement executed during the test via Hibernate's `StatementInspector`. The
-plan-based audits (`WhereClauseIndexAudit`, `OrderByIndexAudit`, `JoinIndexAudit`) additionally analyze each
-statement via `EXPLAIN` and are *PostgreSQL 16+ only*. `UnconditionalMutationAudit` uses a token scan and runs
-on every supported platform.
+plan-based audits (`WhereClauseIndexAudit`, `OrderByIndexAudit`, `JoinIndexAudit`, `UnusedIndexAudit`)
+additionally analyze each statement via `EXPLAIN` and are *PostgreSQL 16+ only*. The token-scan audits
+(`UnconditionalMutationAudit`, `OffsetPaginationAudit`, `RepeatedStatementAudit`) scan the captured SQL text
+directly and run on every supported platform.
 
 [[postgresql-jdbc-requirement]]
 ==== PostgreSQL JDBC requirement: `preferQueryMode=simple`
