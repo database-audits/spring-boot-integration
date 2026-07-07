@@ -7,18 +7,29 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
+import io.github.databaseaudits.audit.finding.DuplicateForeignKeyFinding;
+import io.github.databaseaudits.audit.finding.EagerCollectionFetchFinding;
 import io.github.databaseaudits.audit.finding.Finding;
 import io.github.databaseaudits.audit.finding.ForeignKeyIndexFinding;
 import io.github.databaseaudits.audit.finding.ForeignKeyNotNullFinding;
 import io.github.databaseaudits.audit.finding.ForeignKeyTypeMismatchFinding;
 import io.github.databaseaudits.audit.finding.MissingPrimaryKeyFinding;
+import io.github.databaseaudits.audit.finding.MissingVersionAttributeFinding;
+import io.github.databaseaudits.audit.finding.NarrowPrimaryKeyFinding;
+import io.github.databaseaudits.audit.finding.OffsetPaginationFinding;
 import io.github.databaseaudits.audit.finding.PlanIndexFinding;
 import io.github.databaseaudits.audit.finding.RedundantIndexFinding;
+import io.github.databaseaudits.audit.finding.RepeatedStatementFinding;
 import io.github.databaseaudits.audit.finding.SchemaColumnMissingFinding;
 import io.github.databaseaudits.audit.finding.SchemaColumnTypeMismatchFinding;
 import io.github.databaseaudits.audit.finding.SchemaTableMissingFinding;
 import io.github.databaseaudits.audit.finding.UnconditionalMutationFinding;
+import io.github.databaseaudits.audit.finding.UniqueIndexNullableColumnFinding;
+import io.github.databaseaudits.audit.finding.UnmappedColumnFinding;
+import io.github.databaseaudits.audit.finding.UnmappedTableFinding;
+import io.github.databaseaudits.audit.finding.UnusedIndexFinding;
 import io.github.databaseaudits.platform.DatabasePlatform;
 
 /**
@@ -86,6 +97,48 @@ public class FixRenderer {
             case UnconditionalMutationFinding f -> new Fix(FixFidelity.ADVISORY,
                     "-- Add a WHERE clause to scope this statement:\n-- "
                             + f.statement());
+            case DuplicateForeignKeyFinding f -> new Fix(FixFidelity.PRECISE,
+                    dropDuplicateConstraintsDdl(platform, f));
+            case NarrowPrimaryKeyFinding f -> new Fix(FixFidelity.TEMPLATE,
+                    "-- TODO: widen any referencing foreign key columns in the same change.\n"
+                            + alterColumnType(platform, f.table(), f.column(),
+                                    "BIGINT"));
+            case UniqueIndexNullableColumnFinding f -> new Fix(
+                    FixFidelity.ADVISORY,
+                    "-- Make the nullable column(s) NOT NULL: "
+                            + String.join(", ", f.nullableColumns())
+                            + "\n-- Or, on PostgreSQL 15+, recreate the index with NULLS NOT DISTINCT.\n"
+                            + "-- Or exclude the index if the partial uniqueness is deliberate.");
+            case OffsetPaginationFinding f -> new Fix(FixFidelity.ADVISORY,
+                    "-- Switch to keyset (seek) pagination:\n"
+                            + "-- WHERE (sort_key, id) > (?, ?) ORDER BY sort_key, id LIMIT ?\n"
+                            + "-- Statement: " + f.statement());
+            case RepeatedStatementFinding f -> new Fix(FixFidelity.ADVISORY,
+                    "-- Eliminate the N+1 with a fetch join, @EntityGraph, or "
+                            + "@BatchSize/hibernate.default_batch_fetch_size.\n"
+                            + "-- Executed " + f.count() + " times: "
+                            + f.statement());
+            case MissingVersionAttributeFinding f -> new Fix(
+                    FixFidelity.ADVISORY,
+                    "-- Add a @Version attribute to " + f.entityName()
+                            + " (table " + f.table()
+                            + "), or exclude it if genuinely append-only or single-writer.");
+            case EagerCollectionFetchFinding f -> new Fix(FixFidelity.ADVISORY,
+                    "-- Switch " + f.role() + " (collection table "
+                            + f.collectionTable() + ") to FetchType.LAZY, and "
+                            + "fetch eagerly only where a specific query needs it (fetch join or @EntityGraph).");
+            case UnmappedTableFinding f -> new Fix(FixFidelity.ADVISORY,
+                    "-- Map " + f.qualifiedTable()
+                            + " with an entity, or drop it via a migration, or exclude it.");
+            case UnmappedColumnFinding f -> new Fix(FixFidelity.ADVISORY,
+                    "-- Map " + f.qualifiedTable() + "." + f.column()
+                            + " with an entity, or drop it via a migration, or exclude it."
+                            + (f.notNullWithoutDefault()
+                                    ? "\n-- NOT NULL with no default: entity inserts against this table currently fail."
+                                    : ""));
+            case UnusedIndexFinding f -> new Fix(FixFidelity.TEMPLATE,
+                    "-- TODO: confirm against production pg_stat_user_indexes before dropping.\n"
+                            + dropIndex(platform, f.index(), f.table()));
         };
     }
 
@@ -137,6 +190,19 @@ public class FixRenderer {
             case MissingPrimaryKeyFinding f -> comment(finding, platform);
             case PlanIndexFinding f -> comment(finding, platform);
             case UnconditionalMutationFinding f -> comment(finding, platform);
+            case DuplicateForeignKeyFinding f -> changeSet(finding,
+                    dropDuplicateConstraintsXml(f));
+            case NarrowPrimaryKeyFinding f -> comment(finding, platform);
+            case UniqueIndexNullableColumnFinding f -> comment(finding,
+                    platform);
+            case OffsetPaginationFinding f -> comment(finding, platform);
+            case RepeatedStatementFinding f -> comment(finding, platform);
+            case MissingVersionAttributeFinding f -> comment(finding,
+                    platform);
+            case EagerCollectionFetchFinding f -> comment(finding, platform);
+            case UnmappedTableFinding f -> comment(finding, platform);
+            case UnmappedColumnFinding f -> comment(finding, platform);
+            case UnusedIndexFinding f -> comment(finding, platform);
         };
     }
 
@@ -172,6 +238,31 @@ public class FixRenderer {
                 + ">\n            <column name=\"" + escapeXml(column)
                 + "\" type=\"" + escapeXml(type)
                 + "\"/>\n        </addColumn>";
+    }
+
+    /**
+     * Drops every duplicate constraint but the first (sorted) one, keeping
+     * exactly one enforcing the relationship.
+     */
+    private static String dropDuplicateConstraintsDdl(
+            final DatabasePlatform platform,
+            final DuplicateForeignKeyFinding finding) {
+        final String dropClause =
+                isMysqlFamily(platform) ? "DROP FOREIGN KEY" : "DROP CONSTRAINT";
+        return finding.constraints().stream().skip(1)
+                .map(constraint -> "ALTER TABLE " + finding.table() + " "
+                        + dropClause + " " + constraint + ";")
+                .collect(Collectors.joining("\n"));
+    }
+
+    private static String dropDuplicateConstraintsXml(
+            final DuplicateForeignKeyFinding finding) {
+        return finding.constraints().stream().skip(1)
+                .map(constraint -> "<dropForeignKeyConstraint "
+                        + tableAttributes(finding.table())
+                        + " constraintName=\"" + escapeXml(constraint)
+                        + "\"/>")
+                .collect(Collectors.joining("\n        "));
     }
 
     private static String modifyDataType(final String table,
