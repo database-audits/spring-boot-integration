@@ -5,32 +5,51 @@ import java.util.List;
 
 import javax.sql.DataSource;
 
+import io.github.databaseaudits.audit.catalog.DuplicateForeignKeyAudit;
 import io.github.databaseaudits.audit.catalog.ForeignKeyIndexAudit;
 import io.github.databaseaudits.audit.catalog.ForeignKeyNotNullAudit;
 import io.github.databaseaudits.audit.catalog.ForeignKeyTypeMatchAudit;
 import io.github.databaseaudits.audit.catalog.PrimaryKeyPresenceAudit;
+import io.github.databaseaudits.audit.catalog.PrimaryKeyTypeAudit;
 import io.github.databaseaudits.audit.catalog.RedundantIndexAudit;
+import io.github.databaseaudits.audit.catalog.UniqueIndexNotNullAudit;
+import io.github.databaseaudits.audit.jpa.EagerCollectionFetchAudit;
+import io.github.databaseaudits.audit.jpa.MissingVersionAttributeAudit;
 import io.github.databaseaudits.audit.jpa.SchemaEntityValidationAudit;
+import io.github.databaseaudits.audit.jpa.UnmappedDatabaseObjectAudit;
+import io.github.databaseaudits.audit.runtime.OffsetPaginationAudit;
+import io.github.databaseaudits.audit.runtime.RepeatedStatementAudit;
 import io.github.databaseaudits.audit.runtime.UnconditionalMutationAudit;
 import io.github.databaseaudits.audit.runtime.plan.JoinIndexAudit;
 import io.github.databaseaudits.audit.runtime.plan.OrderByIndexAudit;
+import io.github.databaseaudits.audit.runtime.plan.UnusedIndexAudit;
 import io.github.databaseaudits.audit.runtime.plan.WhereClauseIndexAudit;
 import io.github.databaseaudits.capture.SqlCapturingStatementInspector;
+import io.github.databaseaudits.catalog.ForeignKeyCatalog;
 import io.github.databaseaudits.catalog.IndexCatalog;
 import io.github.databaseaudits.jdbc.CatalogQueries;
 import io.github.databaseaudits.plan.QueryPlanExplainer;
 import io.github.databaseaudits.platform.DatabasePlatform;
 import io.github.databaseaudits.spring.boot.assertion.AuditAssertion;
 import io.github.databaseaudits.spring.boot.assertion.DatabaseAuditAssertions;
+import io.github.databaseaudits.spring.boot.assertion.DuplicateForeignKeyAuditAssertion;
+import io.github.databaseaudits.spring.boot.assertion.EagerCollectionFetchAuditAssertion;
 import io.github.databaseaudits.spring.boot.assertion.ForeignKeyIndexAuditAssertion;
 import io.github.databaseaudits.spring.boot.assertion.ForeignKeyNotNullAuditAssertion;
 import io.github.databaseaudits.spring.boot.assertion.ForeignKeyTypeMatchAuditAssertion;
 import io.github.databaseaudits.spring.boot.assertion.JoinIndexAuditAssertion;
+import io.github.databaseaudits.spring.boot.assertion.MissingVersionAttributeAuditAssertion;
+import io.github.databaseaudits.spring.boot.assertion.OffsetPaginationAuditAssertion;
 import io.github.databaseaudits.spring.boot.assertion.OrderByIndexAuditAssertion;
 import io.github.databaseaudits.spring.boot.assertion.PrimaryKeyPresenceAuditAssertion;
+import io.github.databaseaudits.spring.boot.assertion.PrimaryKeyTypeAuditAssertion;
 import io.github.databaseaudits.spring.boot.assertion.RedundantIndexAuditAssertion;
+import io.github.databaseaudits.spring.boot.assertion.RepeatedStatementAuditAssertion;
 import io.github.databaseaudits.spring.boot.assertion.SchemaEntityValidationAuditAssertion;
 import io.github.databaseaudits.spring.boot.assertion.UnconditionalMutationAuditAssertion;
+import io.github.databaseaudits.spring.boot.assertion.UniqueIndexNotNullAuditAssertion;
+import io.github.databaseaudits.spring.boot.assertion.UnmappedDatabaseObjectAuditAssertion;
+import io.github.databaseaudits.spring.boot.assertion.UnusedIndexAuditAssertion;
 import io.github.databaseaudits.spring.boot.assertion.WhereClauseIndexAuditAssertion;
 import jakarta.persistence.EntityManagerFactory;
 
@@ -100,10 +119,18 @@ public class DatabaseAuditSuite {
         final CatalogQueries catalogQueries = new CatalogQueries(dataSource);
         final IndexCatalog indexCatalog =
                 new IndexCatalog(catalogQueries, platform);
+        final ForeignKeyCatalog foreignKeyCatalog =
+                new ForeignKeyCatalog(catalogQueries, platform);
 
         // The one legitimate enumeration of the roster, in family order
         // (catalog, JPA, runtime); everything else drives it through all().
-        final List<AuditAssertion> roster = new ArrayList<>(List.of(
+        // The explicit type witness keeps javac's common-supertype inference
+        // from picking the package-private AbstractAuditAssertion (compiling
+        // an inaccessible-type error) instead of the public AuditAssertion.
+        final List<AuditAssertion> roster = new ArrayList<>(List.<AuditAssertion>of(
+                new DuplicateForeignKeyAuditAssertion(
+                        new DuplicateForeignKeyAudit(foreignKeyCatalog),
+                        platform),
                 new ForeignKeyIndexAuditAssertion(new ForeignKeyIndexAudit(
                         catalogQueries, indexCatalog, platform), platform),
                 new ForeignKeyNotNullAuditAssertion(
@@ -115,18 +142,38 @@ public class DatabaseAuditSuite {
                 new PrimaryKeyPresenceAuditAssertion(
                         new PrimaryKeyPresenceAudit(catalogQueries, platform),
                         platform),
+                new PrimaryKeyTypeAuditAssertion(
+                        new PrimaryKeyTypeAudit(catalogQueries, platform),
+                        platform),
                 new RedundantIndexAuditAssertion(
                         new RedundantIndexAudit(indexCatalog), platform),
+                new UniqueIndexNotNullAuditAssertion(
+                        new UniqueIndexNotNullAudit(catalogQueries,
+                                indexCatalog, platform),
+                        platform),
+                new EagerCollectionFetchAuditAssertion(
+                        EagerCollectionFetchAudit.forEntityManagerFactory(
+                                entityManagerFactory),
+                        platform),
+                new MissingVersionAttributeAuditAssertion(
+                        MissingVersionAttributeAudit.forEntityManagerFactory(
+                                entityManagerFactory),
+                        platform),
                 new SchemaEntityValidationAuditAssertion(
                         SchemaEntityValidationAudit.forEntityManagerFactory(
                                 entityManagerFactory, dataSource),
+                        platform),
+                new UnmappedDatabaseObjectAuditAssertion(
+                        UnmappedDatabaseObjectAudit.forEntityManagerFactory(
+                                entityManagerFactory, dataSource),
                         platform)));
 
-        // The plan-based runtime audits (Join/OrderBy/WhereClause) are
+        // The plan-based runtime audits (Join/OrderBy/Unused/WhereClause) are
         // PostgreSQL-only — they fail fast on every other platform — so they are
         // wired only where the platform can run them; the facade's runtime and
         // all-family runs then stay clean on MySQL/MariaDB. The capture-based
-        // UnconditionalMutation audit runs on every platform.
+        // OffsetPagination/RepeatedStatement/UnconditionalMutation audits run on
+        // every platform.
         if (platform == DatabasePlatform.POSTGRESQL) {
             final QueryPlanExplainer queryPlanExplainer =
                     new QueryPlanExplainer(dataSource, platform);
@@ -136,10 +183,18 @@ public class DatabaseAuditSuite {
             roster.add(new OrderByIndexAuditAssertion(
                     new OrderByIndexAudit(queryPlanExplainer, sqlCapturer),
                     platform));
+            roster.add(new UnusedIndexAuditAssertion(
+                    new UnusedIndexAudit(queryPlanExplainer, sqlCapturer,
+                            indexCatalog, foreignKeyCatalog),
+                    platform));
             roster.add(new WhereClauseIndexAuditAssertion(
                     new WhereClauseIndexAudit(queryPlanExplainer, sqlCapturer),
                     platform));
         }
+        roster.add(new OffsetPaginationAuditAssertion(
+                new OffsetPaginationAudit(sqlCapturer), platform));
+        roster.add(new RepeatedStatementAuditAssertion(
+                new RepeatedStatementAudit(sqlCapturer), platform));
         roster.add(new UnconditionalMutationAuditAssertion(
                 new UnconditionalMutationAudit(sqlCapturer), platform));
 
