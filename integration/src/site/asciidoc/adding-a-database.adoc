@@ -72,18 +72,18 @@ import org.testcontainers.newengine.NewEngineContainer;
 Leave the `preferQueryMode=simple` URL parameter on the PostgreSQL branch only — it is a PostgreSQL JDBC
 property the plan audits require, and those audits do not run on other engines.
 
-=== Step 3 — `application.properties`: schema and bookkeeping tables
+=== Step 3 — `application.properties`: schema name
 
-In `archetype-resources/src/test/resources/application.properties`, the non-PostgreSQL branch already handles two
-divergences; confirm they hold for the new engine, and widen the branch if not:
+In `archetype-resources/src/test/resources/application.properties`, confirm the existing non-PostgreSQL branch
+holds for the new engine, and widen it if not:
 
 * **Schema name.** MySQL and MariaDB have no `public` schema — their Testcontainers database is `test` — so when
   `schemaName` is left at its PostgreSQL-oriented default the harness scans `test` instead. If the new engine
   also lacks a `public` schema, the existing `#if($databasePlatform != 'postgresql' && $schemaName == 'public')`
   branch covers it.
-* **Liquibase bookkeeping tables.** MySQL/MariaDB store the unquoted `DATABASECHANGELOG` upper-cased, which the
-  primary-key audit's built-in lowercase exclusion would miss; the properties force the lowercase names so the
-  exclusion applies. Keep this for any engine that upper-cases unquoted identifiers.
+
+The primary-key audit's built-in Liquibase-bookkeeping-table exclusion matches case-insensitively, so an engine
+that upper-cases unquoted identifiers (as MySQL/MariaDB do for `DATABASECHANGELOG`) needs no properties workaround.
 
 The Liquibase changelog (`db.changelog-master.xml`) is engine-agnostic by design — note its comment about adding
 the foreign key *after* its index so engines that auto-index foreign keys (MySQL, MariaDB) do not create a
@@ -120,7 +120,7 @@ per-platform image default and any schema caveat).
 * [ ] Core supports the engine (its own guide) — the integration then audits it with no change.
 * [ ] `pom.xml` branch: Testcontainers module + JDBC driver.
 * [ ] `DemoDatabaseTestConfig.java` branches: image default, container import, container field + `start()`.
-* [ ] `application.properties`: schema remap and bookkeeping-table casing cover the engine.
+* [ ] `application.properties`: schema remap covers the engine.
 * [ ] `archetype-metadata.xml` doc comment lists the new value; post-generate plan-IT deletion verified.
 * [ ] `projects/full-newengine/` self-test sample (`archetype.properties` with the full property list + `goal.txt`).
 * [ ] link:archetype.html[Archetype] property table updated; `.\mvnw.cmd clean install` green (Docker required).
