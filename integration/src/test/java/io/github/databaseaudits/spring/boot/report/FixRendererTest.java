@@ -6,16 +6,26 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import io.github.databaseaudits.audit.finding.DuplicateForeignKeyFinding;
+import io.github.databaseaudits.audit.finding.EagerCollectionFetchFinding;
 import io.github.databaseaudits.audit.finding.ForeignKeyIndexFinding;
 import io.github.databaseaudits.audit.finding.ForeignKeyNotNullFinding;
 import io.github.databaseaudits.audit.finding.ForeignKeyTypeMismatchFinding;
 import io.github.databaseaudits.audit.finding.MissingPrimaryKeyFinding;
+import io.github.databaseaudits.audit.finding.MissingVersionAttributeFinding;
+import io.github.databaseaudits.audit.finding.NarrowPrimaryKeyFinding;
+import io.github.databaseaudits.audit.finding.OffsetPaginationFinding;
 import io.github.databaseaudits.audit.finding.PlanIndexFinding;
 import io.github.databaseaudits.audit.finding.RedundantIndexFinding;
+import io.github.databaseaudits.audit.finding.RepeatedStatementFinding;
 import io.github.databaseaudits.audit.finding.SchemaColumnMissingFinding;
 import io.github.databaseaudits.audit.finding.SchemaColumnTypeMismatchFinding;
 import io.github.databaseaudits.audit.finding.SchemaTableMissingFinding;
 import io.github.databaseaudits.audit.finding.UnconditionalMutationFinding;
+import io.github.databaseaudits.audit.finding.UniqueIndexNullableColumnFinding;
+import io.github.databaseaudits.audit.finding.UnmappedColumnFinding;
+import io.github.databaseaudits.audit.finding.UnmappedTableFinding;
+import io.github.databaseaudits.audit.finding.UnusedIndexFinding;
 import io.github.databaseaudits.platform.DatabasePlatform;
 
 /**
@@ -300,5 +310,249 @@ class FixRendererTest {
         assertThat(body)
                 .as("An XML comment body must not contain '--' (invalid XML).")
                 .doesNotContain("--");
+    }
+
+    @Test
+    void testFixFor_DuplicateForeignKey_DropSyntaxDiffersByPlatform() {
+        final DuplicateForeignKeyFinding finding = new DuplicateForeignKeyFinding(
+                "child", List.of("parent_id"), "parent", List.of("id"),
+                List.of("fk_child_parent", "fk_child_parent_2"));
+
+        assertThat(renderer.fixFor(finding, DatabasePlatform.POSTGRESQL))
+                .as("PostgreSQL drops the extra constraint via DROP CONSTRAINT; the first (sorted) one is kept.")
+                .isEqualTo(new Fix(FixFidelity.PRECISE,
+                        "ALTER TABLE child DROP CONSTRAINT fk_child_parent_2;"));
+        assertThat(renderer.fixFor(finding, DatabasePlatform.MARIADB))
+                .as("MariaDB rejects DROP CONSTRAINT for foreign keys and requires DROP FOREIGN KEY.")
+                .isEqualTo(new Fix(FixFidelity.PRECISE,
+                        "ALTER TABLE child DROP FOREIGN KEY fk_child_parent_2;"));
+    }
+
+    @Test
+    void testLiquibaseChangeSet_DuplicateForeignKey_IsADropForeignKeyConstraintChangeSet() {
+        final DuplicateForeignKeyFinding finding = new DuplicateForeignKeyFinding(
+                "child", List.of("parent_id"), "parent", List.of("id"),
+                List.of("fk_child_parent", "fk_child_parent_2"));
+
+        assertThat(renderer.liquibaseChangeSet(finding, DatabasePlatform.POSTGRESQL))
+                .as("A duplicate FK drops the extra constraint via the native dropForeignKeyConstraint type.")
+                .contains(
+                        "<dropForeignKeyConstraint tableName=\"child\" constraintName=\"fk_child_parent_2\"/>")
+                .doesNotContain("<sql>");
+    }
+
+    @Test
+    void testFixFor_NarrowPrimaryKey_IsATemplateWideningToBigint() {
+        assertThat(renderer.fixFor(
+                new NarrowPrimaryKeyFinding("orders", "id", "integer"),
+                DatabasePlatform.POSTGRESQL))
+                .as("Widening a PK cannot fully specify the referencing FK columns, so the fix is a template.")
+                .satisfies(fix -> {
+                    assertThat(fix.fidelity()).isEqualTo(FixFidelity.TEMPLATE);
+                    assertThat(fix.ddl())
+                            .contains(
+                                    "ALTER TABLE orders ALTER COLUMN id TYPE BIGINT;")
+                            .contains("TODO");
+                });
+    }
+
+    @Test
+    void testLiquibaseChangeSet_NarrowPrimaryKey_IsACommentNotAChangeSet() {
+        assertThat(renderer.liquibaseChangeSet(
+                new NarrowPrimaryKeyFinding("orders", "id", "integer"),
+                DatabasePlatform.POSTGRESQL))
+                .as("A template fix degrades to a comment, not a broken change.")
+                .startsWith("    <!--").doesNotContain("<changeSet");
+    }
+
+    @Test
+    void testFixFor_UniqueIndexNullableColumn_IsAdvisoryNamingTheNullableColumns() {
+        assertThat(renderer.fixFor(
+                new UniqueIndexNullableColumnFinding("customers",
+                        "uq_customers_email", List.of("email")),
+                DatabasePlatform.POSTGRESQL))
+                .as("No DDL can be safely auto-applied without knowing whether NULLs "
+                        + "should be permitted, so the fix is advisory only.")
+                .satisfies(fix -> {
+                    assertThat(fix.fidelity()).isEqualTo(FixFidelity.ADVISORY);
+                    assertThat(fix.ddl()).contains("NOT NULL")
+                            .contains("email").contains("NULLS NOT DISTINCT");
+                });
+    }
+
+    @Test
+    void testLiquibaseChangeSet_UniqueIndexNullableColumn_IsACommentNotAChangeSet() {
+        assertThat(renderer.liquibaseChangeSet(
+                new UniqueIndexNullableColumnFinding("customers",
+                        "uq_customers_email", List.of("email")),
+                DatabasePlatform.POSTGRESQL))
+                .startsWith("    <!--").doesNotContain("<changeSet");
+    }
+
+    @Test
+    void testFixFor_OffsetPagination_IsAdvisoryWithKeysetGuidance() {
+        assertThat(renderer.fixFor(
+                new OffsetPaginationFinding(
+                        "select * from orders limit ? offset ?"),
+                DatabasePlatform.POSTGRESQL))
+                .as("The fix is a code change (pagination strategy), not DDL, so it is advisory only.")
+                .satisfies(fix -> {
+                    assertThat(fix.fidelity()).isEqualTo(FixFidelity.ADVISORY);
+                    assertThat(fix.ddl()).contains("keyset")
+                            .contains("select * from orders limit ? offset ?");
+                });
+    }
+
+    @Test
+    void testLiquibaseChangeSet_OffsetPagination_IsACommentNotAChangeSet() {
+        assertThat(renderer.liquibaseChangeSet(
+                new OffsetPaginationFinding(
+                        "select * from orders limit ? offset ?"),
+                DatabasePlatform.POSTGRESQL))
+                .startsWith("    <!--").doesNotContain("<changeSet");
+    }
+
+    @Test
+    void testFixFor_RepeatedStatement_IsAdvisoryNamingTheCountAndStatement() {
+        assertThat(renderer.fixFor(
+                new RepeatedStatementFinding(
+                        "select * from order_items where order_id = ?", 137),
+                DatabasePlatform.POSTGRESQL))
+                .as("The fix is a code change (fetch strategy), not DDL, so it is advisory only.")
+                .satisfies(fix -> {
+                    assertThat(fix.fidelity()).isEqualTo(FixFidelity.ADVISORY);
+                    assertThat(fix.ddl()).contains("fetch join")
+                            .contains("137")
+                            .contains(
+                                    "select * from order_items where order_id = ?");
+                });
+    }
+
+    @Test
+    void testLiquibaseChangeSet_RepeatedStatement_IsACommentNotAChangeSet() {
+        assertThat(renderer.liquibaseChangeSet(
+                new RepeatedStatementFinding(
+                        "select * from order_items where order_id = ?", 137),
+                DatabasePlatform.POSTGRESQL))
+                .startsWith("    <!--").doesNotContain("<changeSet");
+    }
+
+    @Test
+    void testFixFor_MissingVersionAttribute_IsAdvisoryNamingTheEntityAndTable() {
+        assertThat(renderer.fixFor(
+                new MissingVersionAttributeFinding("com.acme.Order", "orders"),
+                DatabasePlatform.POSTGRESQL))
+                .as("Adding @Version is a mapping change, not DDL, so the fix is advisory only.")
+                .satisfies(fix -> {
+                    assertThat(fix.fidelity()).isEqualTo(FixFidelity.ADVISORY);
+                    assertThat(fix.ddl()).contains("@Version")
+                            .contains("com.acme.Order").contains("orders");
+                });
+    }
+
+    @Test
+    void testLiquibaseChangeSet_MissingVersionAttribute_IsACommentNotAChangeSet() {
+        assertThat(renderer.liquibaseChangeSet(
+                new MissingVersionAttributeFinding("com.acme.Order", "orders"),
+                DatabasePlatform.POSTGRESQL))
+                .startsWith("    <!--").doesNotContain("<changeSet");
+    }
+
+    @Test
+    void testFixFor_EagerCollectionFetch_IsAdvisoryNamingTheRoleAndTable() {
+        assertThat(renderer.fixFor(
+                new EagerCollectionFetchFinding("com.acme.Order.items",
+                        "order_items"),
+                DatabasePlatform.POSTGRESQL))
+                .as("Switching FetchType is a mapping change, not DDL, so the fix is advisory only.")
+                .satisfies(fix -> {
+                    assertThat(fix.fidelity()).isEqualTo(FixFidelity.ADVISORY);
+                    assertThat(fix.ddl()).contains("FetchType.LAZY")
+                            .contains("com.acme.Order.items")
+                            .contains("order_items");
+                });
+    }
+
+    @Test
+    void testLiquibaseChangeSet_EagerCollectionFetch_IsACommentNotAChangeSet() {
+        assertThat(renderer.liquibaseChangeSet(
+                new EagerCollectionFetchFinding("com.acme.Order.items",
+                        "order_items"),
+                DatabasePlatform.POSTGRESQL))
+                .startsWith("    <!--").doesNotContain("<changeSet");
+    }
+
+    @Test
+    void testFixFor_UnmappedTable_IsAdvisoryNamingTheTable() {
+        assertThat(renderer.fixFor(
+                new UnmappedTableFinding("public.orphan_table"),
+                DatabasePlatform.POSTGRESQL))
+                .as("Mapping or dropping an unmapped table is a human decision, so the fix is advisory only.")
+                .satisfies(fix -> {
+                    assertThat(fix.fidelity()).isEqualTo(FixFidelity.ADVISORY);
+                    assertThat(fix.ddl()).contains("public.orphan_table");
+                });
+    }
+
+    @Test
+    void testLiquibaseChangeSet_UnmappedTable_IsACommentNotAChangeSet() {
+        assertThat(renderer.liquibaseChangeSet(
+                new UnmappedTableFinding("public.orphan_table"),
+                DatabasePlatform.POSTGRESQL))
+                .startsWith("    <!--").doesNotContain("<changeSet");
+    }
+
+    @Test
+    void testFixFor_UnmappedColumnNotNullWithoutDefault_NamesTheInsertBreakingRisk() {
+        assertThat(renderer.fixFor(
+                new UnmappedColumnFinding("public.orders", "tenant_id", true),
+                DatabasePlatform.POSTGRESQL))
+                .as("A NOT NULL column with no default breaks entity inserts, and the fix must say so.")
+                .satisfies(fix -> {
+                    assertThat(fix.fidelity()).isEqualTo(FixFidelity.ADVISORY);
+                    assertThat(fix.ddl()).contains("public.orders")
+                            .contains("tenant_id")
+                            .contains("entity inserts");
+                });
+    }
+
+    @Test
+    void testFixFor_UnmappedColumnNullable_OmitsTheInsertBreakingRisk() {
+        assertThat(renderer.fixFor(
+                new UnmappedColumnFinding("public.orders", "legacy_note", false),
+                DatabasePlatform.POSTGRESQL))
+                .as("A nullable unmapped column does not break inserts, so the fix omits that warning.")
+                .satisfies(fix -> assertThat(fix.ddl())
+                        .doesNotContain("entity inserts"));
+    }
+
+    @Test
+    void testLiquibaseChangeSet_UnmappedColumn_IsACommentNotAChangeSet() {
+        assertThat(renderer.liquibaseChangeSet(
+                new UnmappedColumnFinding("public.orders", "tenant_id", true),
+                DatabasePlatform.POSTGRESQL))
+                .startsWith("    <!--").doesNotContain("<changeSet");
+    }
+
+    @Test
+    void testFixFor_UnusedIndex_IsATemplateNamingTheDropAndTheVerificationCaveat() {
+        assertThat(renderer.fixFor(
+                new UnusedIndexFinding("orders", "idx_orders_legacy_status"),
+                DatabasePlatform.POSTGRESQL))
+                .as("Dropping an index on generic-plan evidence alone is risky, so the fix is a template "
+                        + "with a verify-against-production caveat.")
+                .satisfies(fix -> {
+                    assertThat(fix.fidelity()).isEqualTo(FixFidelity.TEMPLATE);
+                    assertThat(fix.ddl()).contains("pg_stat_user_indexes")
+                            .contains("DROP INDEX idx_orders_legacy_status;");
+                });
+    }
+
+    @Test
+    void testLiquibaseChangeSet_UnusedIndex_IsACommentNotAChangeSet() {
+        assertThat(renderer.liquibaseChangeSet(
+                new UnusedIndexFinding("orders", "idx_orders_legacy_status"),
+                DatabasePlatform.POSTGRESQL))
+                .startsWith("    <!--").doesNotContain("<changeSet");
     }
 }
