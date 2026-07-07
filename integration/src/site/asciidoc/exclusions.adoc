@@ -24,14 +24,24 @@ or the fluent builder to name each exclusion:
 ----
 DatabaseAuditExcludes excludes = DatabaseAuditExcludes.builder()
     .primaryKeyTables(Set.of("legacy_table_no_pk"))
+    .primaryKeyTypeColumns(Set.of("lookup_values.id"))       // table.column
+    .duplicateForeignKeyConstraints(Set.of("fk_orders_customer_legacy"))
     .foreignKeyIndexConstraints(Set.of("fk_unindexed_by_design"))
     .foreignKeyNotNullColumns(Set.of("order.customer_id"))   // table.column
     .foreignKeyTypeMatchColumns(Set.of("event.entity_id"))   // table.column
     .redundantIndexes(Set.of("idx_status_redundant"))
+    .uniqueIndexNotNullIndexes(Set.of("uq_orders_active_customer"))
     .jpaExcludedRelations(Set.of("legacy_reporting_view"))   // table or table.column, case-insensitive
+    .unmappedDatabaseObjectRelations(Set.of("databasechangelog", "databasechangeloglock"))
+    .missingVersionEntities(Set.of("AuditLogEntry"))         // fully-qualified name, simple name, or table
+    .eagerCollectionRoles(Set.of("com.acme.Order.items"))
     .planRelations(Set.of("small_lookup_table"))             // shared by WHERE/ORDER BY/JOIN audits
     .planSqlFragments(List.of("UPDATE migration_flag"))      // matched as substring
+    .unusedIndexes(Set.of("idx_orders_admin_report"))
     .unconditionalMutationStatements(Set.of("DELETE FROM scratch_pad")) // normalized, case-insensitive
+    .offsetPaginationSqlFragments(List.of("from admin_report"))
+    .repeatedStatementThreshold(50)                          // a generous regression tripwire, not a precise count
+    .repeatedStatementSqlFragments(List.of("from feature_flags"))
     .build();
 ----
 
@@ -55,6 +65,14 @@ audits.assertAllClean(schema, excludes);
 | `PrimaryKeyPresenceAuditAssertion`
 | Exact table name.
 
+| `primaryKeyTypeColumns(Set<String>)`
+| `PrimaryKeyTypeAuditAssertion`
+| Case-insensitive `table.column` string.
+
+| `duplicateForeignKeyConstraints(Set<String>)`
+| `DuplicateForeignKeyAuditAssertion`
+| Exact FK constraint name. Excluding one constraint of a duplicate pair drops that relationship's group below two members, suppressing the finding entirely.
+
 | `foreignKeyIndexConstraints(Set<String>)`
 | `ForeignKeyIndexAuditAssertion`
 | Exact FK constraint name.
@@ -70,10 +88,17 @@ audits.assertAllClean(schema, excludes);
 | `redundantIndexes(Set<String>)`
 | `RedundantIndexAuditAssertion`
 | Exact index name.
+
+| `uniqueIndexNotNullIndexes(Set<String>)`
+| `UniqueIndexNotNullAuditAssertion`
+| Exact index name.
 |===
 
 `PrimaryKeyPresenceAuditAssertion` also excludes the Liquibase bookkeeping tables
 (`databasechangelog`, `databasechangeloglock`) automatically, without needing an explicit exclusion.
+`PrimaryKeyTypeAuditAssertion` and `UnmappedDatabaseObjectAuditAssertion` do not — since
+`databasechangeloglock`'s primary key is a narrow `INT` and neither bookkeeping table is entity-mapped,
+exclude them explicitly (see the archetype example ITs).
 
 === JPA exclusions
 
@@ -83,6 +108,18 @@ audits.assertAllClean(schema, excludes);
 | `jpaExcludedRelations(Set<String>)`
 | `SchemaEntityValidationAuditAssertion`
 | A `table` or `table.column` name — optionally schema-qualified as `schema.table` / `schema.table.column` — matched case-insensitively. Suppresses a known, acceptable entity/schema mismatch.
+
+| `unmappedDatabaseObjectRelations(Set<String>)`
+| `UnmappedDatabaseObjectAuditAssertion`
+| A `table` or `table.column` name — optionally schema-qualified — matched case-insensitively. Suppresses a known, acceptable unmapped relation (e.g. a migration-tool bookkeeping table).
+
+| `missingVersionEntities(Set<String>)`
+| `MissingVersionAttributeAuditAssertion`
+| An entity's fully-qualified name, simple name, or physical table name — matched case-insensitively.
+
+| `eagerCollectionRoles(Set<String>)`
+| `EagerCollectionFetchAuditAssertion`
+| Exact Hibernate collection role (e.g. `com.acme.Order.items`), matched case-insensitively.
 |===
 
 === Runtime exclusions
@@ -98,9 +135,25 @@ audits.assertAllClean(schema, excludes);
 | `WhereClauseIndexAuditAssertion`, `OrderByIndexAuditAssertion`, `JoinIndexAuditAssertion`
 | Substring match against the full SQL statement.
 
+| `unusedIndexes(Set<String>)`
+| `UnusedIndexAuditAssertion`
+| Exact index name.
+
 | `unconditionalMutationStatements(Set<String>)`
 | `UnconditionalMutationAuditAssertion`
 | Case-insensitive match against the normalized statement text.
+
+| `offsetPaginationSqlFragments(List<String>)`
+| `OffsetPaginationAuditAssertion`
+| Case-insensitive substring match against the normalized statement text.
+
+| `repeatedStatementThreshold(int)`
+| `RepeatedStatementAuditAssertion`
+| The minimum capture count (inclusive, at least 2) for a `SELECT` shape to be reported; defaults to a generous 50 as a regression tripwire rather than a precise N+1 count.
+
+| `repeatedStatementSqlFragments(List<String>)`
+| `RepeatedStatementAuditAssertion`
+| Case-insensitive substring match against the normalized statement text.
 |===
 
 == Passing exclusions to individual assertion beans
