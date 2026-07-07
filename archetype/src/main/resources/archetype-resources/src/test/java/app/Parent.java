@@ -6,9 +6,11 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 /**
- * Demo parent entity referenced by {@link Child} through an indexed, not-null, type-matched foreign key.
+ * Demo parent entity referenced by {@link Child} through an indexed, not-null, type-matched foreign key. Carries
+ * a {@code @Version} attribute so concurrent updates are detected rather than silently overwritten.
  */
 @Entity
 @Table(name = "parent")
@@ -20,6 +22,10 @@ public class Parent {
 
     @Column(name = "code", nullable = false)
     private String code;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private int version;
 
     /**
      * Constructs an empty instance for JPA.
@@ -52,5 +58,14 @@ public class Parent {
      */
     public String getCode() {
         return code;
+    }
+
+    /**
+     * Returns the optimistic-locking version.
+     *
+     * @return the version.
+     */
+    public int getVersion() {
+        return version;
     }
 }

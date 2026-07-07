@@ -9,11 +9,13 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 /**
  * Demo child entity whose {@code parent_id} foreign key is indexed, not null, and type-matched to
  * {@link Parent}'s primary key. Its {@code name} column is indexed so the example WHERE/ORDER BY audits see an
- * indexed access path.
+ * indexed access path. Carries a {@code @Version} attribute so concurrent updates are detected rather than
+ * silently overwritten.
  */
 @Entity
 @Table(name = "child")
@@ -29,6 +31,10 @@ public class Child {
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id", nullable = false)
     private Parent parent;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private int version;
 
     /**
      * Constructs an empty instance for JPA.
@@ -72,5 +78,14 @@ public class Child {
      */
     public Parent getParent() {
         return parent;
+    }
+
+    /**
+     * Returns the optimistic-locking version.
+     *
+     * @return the version.
+     */
+    public int getVersion() {
+        return version;
     }
 }
